@@ -1,0 +1,6 @@
+id,latitude,longitude,volume,priorite,statut,date
+1,12.6392,-8.0029,8.5,urgent,en_attente,2026-08-11 10:00
+2,12.645,-8.015,3.2,moyen,en_attente,2026-08-11 11:30
+3,12.63,-7.995,1.1,normal,en_cours,2026-08-10 09:00
+4,12.65,-8.01,6.7,urgent,resolu,2026-08-09 14:00
+5,12.635,-8.005,2.5,moyen,en_attente,2026-08-11 09:15

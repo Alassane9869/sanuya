@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html>
+<head>
+    
+    <meta http-equiv="content-type" content="text/html; charset=UTF-8" />
+    <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.3/dist/leaflet.js"></script>
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Leaflet.awesome-markers/2.0.2/leaflet.awesome-markers.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.3/dist/leaflet.css"/>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.2/dist/css/bootstrap.min.css"/>
+    <link rel="stylesheet" href="https://netdna.bootstrapcdn.com/bootstrap/3.0.0/css/bootstrap-glyphicons.css"/>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.2.0/css/all.min.css"/>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/Leaflet.awesome-markers/2.0.2/leaflet.awesome-markers.css"/>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/python-visualization/folium/folium/templates/leaflet.awesome.rotate.min.css"/>
+    
+            <meta name="viewport" content="width=device-width,
+                initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+            <style>
+                #map_c6a95e555cce1e91220f289f8a7ae437 {
+                    position: relative;
+                    width: 100.0%;
+                    height: 100.0%;
+                    left: 0.0%;
+                    top: 0.0%;
+                }
+                .leaflet-container { font-size: 1rem; }
+            </style>
+
+            <style>html, body {
+                width: 100%;
+                height: 100%;
+                margin: 0;
+                padding: 0;
+            }
+            </style>
+
+            <style>#map {
+                position:absolute;
+                top:0;
+                bottom:0;
+                right:0;
+                left:0;
+                }
+            </style>
+
+            <script>
+                L_NO_TOUCH = false;
+                L_DISABLE_3D = false;
+            </script>
+
+        
+</head>
+<body>
+    
+    
+    <div style="position: fixed; bottom: 50px; left: 50px; z-index: 1000;
+                background: white; padding: 12px; border-radius: 10px;
+                box-shadow: 0 2px 5px rgba(0,0,0,0.2);">
+        <div><span style="color:red;">●</span> Urgent (volume > 5 m³)</div>
+        <div><span style="color:orange;">●</span> Moyen (volume 2-5 m³)</div>
+        <div><span style="color:green;">●</span> Normal (volume < 2 m³)</div>
+    </div>
+    
+    
+            <div class="folium-map" id="map_c6a95e555cce1e91220f289f8a7ae437" ></div>
+        
+</body>
+<script>
+    
+    
+            var map_c6a95e555cce1e91220f289f8a7ae437 = L.map(
+                "map_c6a95e555cce1e91220f289f8a7ae437",
+                {
+                    center: [12.6392, -8.0029],
+                    crs: L.CRS.EPSG3857,
+                    ...{
+  "zoom": 13,
+  "zoomControl": true,
+  "preferCanvas": false,
+}
+
+                }
+            );
+
+            
+
+        
+    
+            var tile_layer_5aa4839dbca174bc74a0591282429a64 = L.tileLayer(
+                "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+                {
+  "minZoom": 0,
+  "maxZoom": 19,
+  "maxNativeZoom": 19,
+  "noWrap": false,
+  "attribution": "\u0026copy; \u003ca href=\"https://www.openstreetmap.org/copyright\"\u003eOpenStreetMap\u003c/a\u003e contributors",
+  "subdomains": "abc",
+  "detectRetina": false,
+  "tms": false,
+  "opacity": 1,
+}
+
+            );
+        
+    
+            tile_layer_5aa4839dbca174bc74a0591282429a64.addTo(map_c6a95e555cce1e91220f289f8a7ae437);
+        
+    
+            var marker_c615d1a912c42d56ba5699fb61447c79 = L.marker(
+                [12.6392, -8.0029],
+                {
+}
+            ).addTo(map_c6a95e555cce1e91220f289f8a7ae437);
+        
+    
+            var icon_dcb0aa941c2737dcb85cb2fc7f01f1ba = L.AwesomeMarkers.icon(
+                {
+  "markerColor": "red",
+  "iconColor": "white",
+  "icon": "trash",
+  "prefix": "fa",
+  "extraClasses": "fa-rotate-0",
+}
+            );
+        
+    
+        var popup_25bf8b3ac98525de5951230baf1cc286 = L.popup({
+  "maxWidth": 300,
+});
+
+        
+            
+                var html_ec28a89d8610efd654886f0b6186da13 = $(`<div id="html_ec28a89d8610efd654886f0b6186da13" style="width: 100.0%; height: 100.0%;">         <b>Dépôt</b><br>         📦 Volume: 8.5 m³<br>         🚨 Priorité: urgent<br>         📍 Position: 12.6392, -8.0029         </div>`)[0];
+                popup_25bf8b3ac98525de5951230baf1cc286.setContent(html_ec28a89d8610efd654886f0b6186da13);
+            
+        
+
+        marker_c615d1a912c42d56ba5699fb61447c79.bindPopup(popup_25bf8b3ac98525de5951230baf1cc286)
+        ;
+
+        
+    
+    
+                marker_c615d1a912c42d56ba5699fb61447c79.setIcon(icon_dcb0aa941c2737dcb85cb2fc7f01f1ba);
+            
+    
+            var marker_868c095e5cef4ea991bbf0ccf42a61ee = L.marker(
+                [12.645, -8.015],
+                {
+}
+            ).addTo(map_c6a95e555cce1e91220f289f8a7ae437);
+        
+    
+            var icon_98d5ba6e8a52660d9b5e5c0103feffda = L.AwesomeMarkers.icon(
+                {
+  "markerColor": "orange",
+  "iconColor": "white",
+  "icon": "trash",
+  "prefix": "fa",
+  "extraClasses": "fa-rotate-0",
+}
+            );
+        
+    
+        var popup_b6218f7a21683c7ca1a3311350c7cd34 = L.popup({
+  "maxWidth": 300,
+});
+
+        
+            
+                var html_aa9a88608393218a9bec79845fd8ea8c = $(`<div id="html_aa9a88608393218a9bec79845fd8ea8c" style="width: 100.0%; height: 100.0%;">         <b>Dépôt</b><br>         📦 Volume: 3.2 m³<br>         🚨 Priorité: moyen<br>         📍 Position: 12.645, -8.015         </div>`)[0];
+                popup_b6218f7a21683c7ca1a3311350c7cd34.setContent(html_aa9a88608393218a9bec79845fd8ea8c);
+            
+        
+
+        marker_868c095e5cef4ea991bbf0ccf42a61ee.bindPopup(popup_b6218f7a21683c7ca1a3311350c7cd34)
+        ;
+
+        
+    
+    
+                marker_868c095e5cef4ea991bbf0ccf42a61ee.setIcon(icon_98d5ba6e8a52660d9b5e5c0103feffda);
+            
+    
+            var marker_14b61b5c0bfb9b6cc90548241f27f798 = L.marker(
+                [12.63, -7.995],
+                {
+}
+            ).addTo(map_c6a95e555cce1e91220f289f8a7ae437);
+        
+    
+            var icon_b6fb0bd722e09637a4efec3621086f09 = L.AwesomeMarkers.icon(
+                {
+  "markerColor": "green",
+  "iconColor": "white",
+  "icon": "trash",
+  "prefix": "fa",
+  "extraClasses": "fa-rotate-0",
+}
+            );
+        
+    
+        var popup_a4931b99e6a2934ffe9f5b632df6371e = L.popup({
+  "maxWidth": 300,
+});
+
+        
+            
+                var html_58fef1773c087609406fd80c1270d0d8 = $(`<div id="html_58fef1773c087609406fd80c1270d0d8" style="width: 100.0%; height: 100.0%;">         <b>Dépôt</b><br>         📦 Volume: 1.1 m³<br>         🚨 Priorité: normal<br>         📍 Position: 12.63, -7.995         </div>`)[0];
+                popup_a4931b99e6a2934ffe9f5b632df6371e.setContent(html_58fef1773c087609406fd80c1270d0d8);
+            
+        
+
+        marker_14b61b5c0bfb9b6cc90548241f27f798.bindPopup(popup_a4931b99e6a2934ffe9f5b632df6371e)
+        ;
+
+        
+    
+    
+                marker_14b61b5c0bfb9b6cc90548241f27f798.setIcon(icon_b6fb0bd722e09637a4efec3621086f09);
+            
+    
+            var marker_5275099f188320bdf0dbb2056fab1250 = L.marker(
+                [12.65, -8.01],
+                {
+}
+            ).addTo(map_c6a95e555cce1e91220f289f8a7ae437);
+        
+    
+            var icon_fa719239b19d683ed6c8255fc40c5d3d = L.AwesomeMarkers.icon(
+                {
+  "markerColor": "red",
+  "iconColor": "white",
+  "icon": "trash",
+  "prefix": "fa",
+  "extraClasses": "fa-rotate-0",
+}
+            );
+        
+    
+        var popup_0ba1411b783a726f221e1f7a28d8ab48 = L.popup({
+  "maxWidth": 300,
+});
+
+        
+            
+                var html_4bef96f7a3517ba393c42cb73db01538 = $(`<div id="html_4bef96f7a3517ba393c42cb73db01538" style="width: 100.0%; height: 100.0%;">         <b>Dépôt</b><br>         📦 Volume: 6.7 m³<br>         🚨 Priorité: urgent<br>         📍 Position: 12.65, -8.01         </div>`)[0];
+                popup_0ba1411b783a726f221e1f7a28d8ab48.setContent(html_4bef96f7a3517ba393c42cb73db01538);
+            
+        
+
+        marker_5275099f188320bdf0dbb2056fab1250.bindPopup(popup_0ba1411b783a726f221e1f7a28d8ab48)
+        ;
+
+        
+    
+    
+                marker_5275099f188320bdf0dbb2056fab1250.setIcon(icon_fa719239b19d683ed6c8255fc40c5d3d);
+            
+    
+            var marker_c6ef7777a7d4b6f6f0b44c921fb05803 = L.marker(
+                [12.635, -8.005],
+                {
+}
+            ).addTo(map_c6a95e555cce1e91220f289f8a7ae437);
+        
+    
+            var icon_666cc2b5335ca91caf8ce60699f689c3 = L.AwesomeMarkers.icon(
+                {
+  "markerColor": "orange",
+  "iconColor": "white",
+  "icon": "trash",
+  "prefix": "fa",
+  "extraClasses": "fa-rotate-0",
+}
+            );
+        
+    
+        var popup_4bccb7cdf1c91c44f4d70b716d4f5917 = L.popup({
+  "maxWidth": 300,
+});
+
+        
+            
+                var html_69afe4beafdb15125b37580e4b25c882 = $(`<div id="html_69afe4beafdb15125b37580e4b25c882" style="width: 100.0%; height: 100.0%;">         <b>Dépôt</b><br>         📦 Volume: 2.5 m³<br>         🚨 Priorité: moyen<br>         📍 Position: 12.635, -8.005         </div>`)[0];
+                popup_4bccb7cdf1c91c44f4d70b716d4f5917.setContent(html_69afe4beafdb15125b37580e4b25c882);
+            
+        
+
+        marker_c6ef7777a7d4b6f6f0b44c921fb05803.bindPopup(popup_4bccb7cdf1c91c44f4d70b716d4f5917)
+        ;
+
+        
+    
+    
+                marker_c6ef7777a7d4b6f6f0b44c921fb05803.setIcon(icon_666cc2b5335ca91caf8ce60699f689c3);
+            
+</script>
+</html>
