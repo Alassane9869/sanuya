@@ -1,7 +1,7 @@
 import dash
 from dash import dcc, html, Input, Output, State, dash_table, MATCH, ALL
 import dash_bootstrap_components as dbc
-import mysql.connector
+from database import get_connection, init_sqlite_db
 from datetime import datetime, date, timedelta
 import pandas as pd
 import folium
@@ -312,34 +312,31 @@ app.index_string = '''
 </html>
 '''
 
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
 # --- Chargement du modèle YOLO ---
 def load_model():
     paths = [
-        'runs/detect/train-2/weights/best.pt',
-        'C:/Users/hp/runs/detect/train-2/weights/best.pt',
-        'yolov8n.pt'
+        os.path.join(BASE_DIR, "runs", "detect", "train", "weights", "best.pt"),
+        os.path.join(BASE_DIR, "runs", "detect", "train-2", "weights", "best.pt"),
+        os.path.join(BASE_DIR, "yolov8m.pt"),
+        os.path.join(BASE_DIR, "yolov8n.pt")
     ]
     for p in paths:
         if os.path.exists(p):
-            print(f"✅ Modèle chargé : {p}")
+            print(f"[OK] Modèle chargé : {p}")
             return YOLO(p)
-    print("⚠️ Modèle par défaut")
+    print("[AVERTISSEMENT] Modèle par défaut yolov8n.pt")
     return YOLO('yolov8n.pt')
 
 model = load_model()
 
-# --- Connexion MySQL ---
-def get_connection():
-    try:
-        return mysql.connector.connect(
-            host='localhost',
-            user='root',
-            password='27142005',
-            database='sanuya'
-        )
-    except Exception as e:
-        print(f"❌ MySQL : {e}")
-        return None
+# --- Modules Métier SANUYA ---
+from database import get_connection, init_sqlite_db
+from estimation import estimer_volume, prioriser
+from verification import est_doublon
+
+init_sqlite_db()
 
 # --- Fonctions d'extraction de métadonnées ---
 def get_location_from_metadata(chemin_photo):
@@ -527,6 +524,39 @@ def get_capture_date(chemin_photo):
         print(f"⚠️ Erreur date capture : {e}")
         return datetime.now().strftime("%d/%m/%Y %H:%M:%S")
 
+# --- Géolocalisation inverse ---
+geolocator = Nominatim(user_agent="sanuya_dashboard_app")
+_address_cache = {}
+
+def get_address(lat, lon):
+    try:
+        lat_f, lon_f = float(lat), float(lon)
+    except (ValueError, TypeError):
+        return "Coordonnées inconnues"
+
+    if abs(lat_f - 12.6392) < 0.0001 and abs(lon_f - (-8.0029)) < 0.0001:
+        return "Bamako, Mali (Position par défaut)"
+
+    key = (round(lat_f, 4), round(lon_f, 4))
+    if key in _address_cache:
+        return _address_cache[key]
+
+    try:
+        location = geolocator.reverse((lat_f, lon_f), timeout=3)
+        if location and location.address:
+            addr = location.address
+            parts = [p.strip() for p in addr.split(',')]
+            if len(parts) > 3:
+                addr = f"{parts[0]}, {parts[1]}, {parts[-1]}"
+            _address_cache[key] = addr
+            return addr
+    except Exception:
+        pass
+
+    fallback = f"Lat: {lat_f:.4f}, Lon: {lon_f:.4f}"
+    _address_cache[key] = fallback
+    return fallback
+
 # ==================== STATS POUR LE TABLEAU DE BORD ====================
 def get_stats_dashboard():
     conn = get_connection()
@@ -636,23 +666,30 @@ def get_depots_filtres(filtre_priorite='tous', filtre_statut='tous'):
         return []
 
 # ==================== FONCTIONS CRUD ====================
-def add_detection(lat, lon, volume, priorite, statut, photo_nom):
+def add_detection(lat, lon, volume, priorite, statut, photo_nom, photo_chemin=None):
     conn = get_connection()
     if not conn:
-        return False
+        return {'success': False, 'is_doublon': False}
     try:
+        if photo_chemin is None:
+            photo_chemin = f"images_test/{photo_nom}"
+        
+        # Vérification anti-doublons par GPS (< 50 mètres)
+        existants = get_depots_filtres()
+        is_dup, id_dup, distance = est_doublon(lat, lon, existants, seuil=50)
+        
         cursor = conn.cursor()
         cursor.execute("""
             INSERT INTO signalements 
-            (latitude, longitude, volume, priorite, statut, date_creation, photo_nom, photo_chemin)
-            VALUES (%s, %s, %s, %s, %s, NOW(), %s, %s)
-        """, (lat, lon, volume, priorite, statut, photo_nom, f"images_test/{photo_nom}"))
+            (latitude, longitude, volume, priorite, statut, date_creation, photo_nom, photo_chemin, est_doublon, doublon_de)
+            VALUES (%s, %s, %s, %s, %s, NOW(), %s, %s, %s, %s)
+        """, (lat, lon, volume, priorite, statut, photo_nom, photo_chemin, 1 if is_dup else 0, id_dup))
         conn.commit()
         conn.close()
-        return True
+        return {'success': True, 'is_doublon': is_dup, 'id_doublon': id_dup, 'distance': distance}
     except Exception as e:
-        print(f"❌ Erreur ajout : {e}")
-        return False
+        print(f"[ERREUR] Erreur ajout : {e}")
+        return {'success': False, 'is_doublon': False, 'erreur': str(e)}
 
 def update_status_db(depot_id, statut):
     conn = get_connection()
@@ -703,18 +740,54 @@ def analyser_photo(chemin):
     img = cv2.imread(chemin)
     if img is None:
         return {'erreur': 'Image invalide'}
+    
+    img_h, img_w = img.shape[:2]
     r = model.predict(img, conf=0.3, verbose=False)
+    
+    # Génération de l'image annotée avec les rectangles de détection
+    annotated_frame = r[0].plot()
+    nom_base = os.path.basename(chemin)
+    chemin_annote = os.path.join(os.path.dirname(chemin), f"annote_{nom_base}")
+    cv2.imwrite(chemin_annote, annotated_frame)
+    
+    # Encodage base64 de l'image annotée pour affichage direct
+    _, buffer = cv2.imencode('.jpg', annotated_frame)
+    img_b64 = base64.b64encode(buffer).decode('utf-8')
+    
     dechets = []
     for box in r[0].boxes:
         nom = model.names[int(box.cls[0])]
         conf = float(box.conf[0])
         x1, y1, x2, y2 = map(int, box.xyxy[0].tolist())
-        dechets.append({'type': nom, 'confiance': round(conf*100, 2), 'largeur': x2-x1, 'hauteur': y2-y1})
+        dechets.append({
+            'type': nom,
+            'confiance': round(conf * 100, 1),
+            'largeur': x2 - x1,
+            'hauteur': y2 - y1
+        })
+    
     if dechets:
-        vol = round(sum(d['largeur']*d['hauteur'] for d in dechets) / 100000, 2)
-        prio = determiner_priorite(vol)
-        return {'nb': len(dechets), 'dechets': dechets, 'volume': vol, 'priorite': prio}
-    return {'nb': 0, 'dechets': [], 'volume': 0, 'priorite': 'normal'}
+        # Calcul normalisé par la résolution de l'image
+        surface_relative = sum(d['largeur'] * d['hauteur'] for d in dechets) / (img_w * img_h)
+        vol = max(0.1, round(surface_relative * 15.0, 2))
+        prio = prioriser(vol)
+        return {
+            'nb': len(dechets),
+            'dechets': dechets,
+            'volume': vol,
+            'priorite': prio,
+            'image_b64': img_b64,
+            'chemin_annote': chemin_annote
+        }
+    
+    return {
+        'nb': 0,
+        'dechets': [],
+        'volume': 0,
+        'priorite': 'normal',
+        'image_b64': img_b64,
+        'chemin_annote': chemin_annote
+    }
 
 # ==================== Generation de carte ====================
 def generate_map():
@@ -743,30 +816,40 @@ def generate_map():
         lat = float(depot['latitude'])
         lon = float(depot['longitude'])
         
-        if abs(lat - 12.6392) < 0.0001 and abs(lon - (-8.0029)) < 0.0001:
-            continue
+        priorite = depot.get('priorite', 'normal')
+        statut = depot.get('statut', 'en_attente')
+        volume = depot.get('volume', 0)
+        depot_id = depot.get('id', '?')
         
-        priorite = depot['priorite']
-        statut = depot['statut']
-        volume = depot['volume']
-        depot_id = depot['id']
-        couleur = couleurs.get(priorite, 'gray')
+        is_default_coords = (abs(lat - 12.6392) < 0.0001 and abs(lon - (-8.0029)) < 0.0001)
+        if is_default_coords:
+            couleur = 'purple'
+            badge_loc = "<span style='color:#7c3aed;font-size:11px;font-weight:700;'>📍 Position approximative (Bamako)</span><br>"
+        else:
+            couleur = couleurs.get(priorite, 'blue')
+            badge_loc = ""
         
         adresse = get_address(lat, lon)
         maps_link = f"https://www.google.com/maps/search/?api=1&query={lat},{lon}"
         
         popup_text = f"""
-        <b>Dépôt #{depot_id}</b><br>
-        {adresse}<br>
-        Volume: {volume} m³<br>
-        Priorité: {priorite}<br>
-        Statut: {statut}<br>
-        <a href="{maps_link}" target="_blank" style="color:#007bff;font-weight:600;">Voir sur Google Maps</a>
+        <div style="font-family: Arial, sans-serif; min-width: 200px;">
+            <b style="font-size: 14px;">Dépôt #{depot_id}</b><br>
+            {badge_loc}
+            <b>Adresse :</b> {adresse}<br>
+            <b>Volume :</b> {volume} m³<br>
+            <b>Priorité :</b> <span style="text-transform: capitalize; font-weight: bold;">{priorite}</span><br>
+            <b>Statut :</b> {statut}<br><br>
+            <a href="{maps_link}" target="_blank" style="color:#007bff;font-weight:600;text-decoration:none;">
+                Voir sur Google Maps &rarr;
+            </a>
+        </div>
         """
         
         folium.Marker(
             location=[lat, lon],
-            popup=folium.Popup(popup_text, max_width=300),
+            popup=folium.Popup(popup_text, max_width=320),
+            tooltip=f"Dépôt #{depot_id} ({priorite} - {volume} m³)",
             icon=folium.Icon(color=couleur, icon='trash', prefix='fa')
         ).add_to(cluster)
     
@@ -820,8 +903,24 @@ def create_stat_card(title, value, color):
 def page_dashboard():
     return html.Div([
         html.H1("Tableau de bord", className="page-title"),
-        html.P("Statistiques des dépôts non résolus", className="page-subtitle mb-4"),
-        html.Div(id="stats-container")
+        html.P("Supervision et cartographie des dépôts sauvages en temps réel", className="page-subtitle mb-4"),
+        html.Div(id="stats-container"),
+        html.Div([
+            html.Div([
+                html.Div([
+                    html.I(className="fas fa-map-marked-alt text-primary me-2", style={'fontSize': '20px'}),
+                    html.H5("Carte des signalements et zones d'intervention", className="mb-0", style={'fontWeight': '700', 'color': '#0f172a'}),
+                    html.Span("Temps réel", className="badge bg-primary-subtle text-primary ms-auto", style={'fontSize': '12px', 'fontWeight': '600'})
+                ], className="d-flex align-items-center mb-3"),
+                html.Div(id="dashboard-map-container", className="map-container"),
+                html.Div([
+                    html.Div([html.Span(className="legend-dot", style={'backgroundColor': '#ef4444'}), html.Span("Urgent (> 5 m³)")], className="legend-item"),
+                    html.Div([html.Span(className="legend-dot", style={'backgroundColor': '#f59e0b'}), html.Span("Moyen (2 - 5 m³)")], className="legend-item"),
+                    html.Div([html.Span(className="legend-dot", style={'backgroundColor': '#22c55e'}), html.Span("Normal (< 2 m³)")], className="legend-item"),
+                    html.Div([html.Span(className="legend-dot", style={'backgroundColor': '#7c3aed'}), html.Span("Position approximative (Bamako)")], className="legend-item"),
+                ], className="legend")
+            ], className="content-card mt-4")
+        ])
     ])
 
 # ==================== PAGE LISTE ====================
@@ -1072,14 +1171,21 @@ def page_tester():
 
 # ==================== CALLBACKS ====================
 @app.callback(
-    Output("stats-container", "children"),
+    [Output("stats-container", "children"),
+     Output("dashboard-map-container", "children")],
     Input("interval-stats", "n_intervals")
 )
 def update_stats_dashboard(n):
     stats = get_stats_dashboard()
+    map_html = generate_map()
+    map_iframe = html.Iframe(
+        srcDoc=map_html,
+        style={'width': '100%', 'height': '100%', 'border': 'none', 'borderRadius': '12px'}
+    )
     if not stats:
-        return html.Div("Impossible de charger les données", className="text-danger")
-    return html.Div([
+        return html.Div("Impossible de charger les données", className="text-danger"), map_iframe
+    
+    stats_cards = html.Div([
         html.Div([
             create_stat_card("Total", stats.get('total', 0), "blue"),
             create_stat_card("Urgents", stats.get('urgent', 0), "red"),
@@ -1098,6 +1204,8 @@ def update_stats_dashboard(n):
             ], className="text-center py-2")
         ], className="content-card", style={'marginTop': '16px'})
     ])
+    
+    return stats_cards, map_iframe
 
 # ==================== CALLBACK LISTE ====================
 @app.callback(
@@ -1398,30 +1506,19 @@ def open_maps_modal(maps_clicks, close_clicks):
         priorite = result[3]
         statut = result[4]
 
-        if abs(lat - 12.6392) < 0.0001 and abs(lon - (-8.0029)) < 0.0001:
-            return True, html.Div([
-                html.Div([
-                    html.I(
-                        className="fas fa-map-marker-alt",
-                        style={'fontSize': '45px', 'color': '#94a3b8'}
-                    ),
-                    html.H5("Position non disponible", className="mt-3"),
-                    html.P(f"Dépôt #{depot_id}", className="text-muted"),
-                    html.P(
-                        "Aucune coordonnée GPS valide n'est associée à ce dépôt.",
-                        className="text-muted"
-                    )
-                ], className="text-center py-5")
-            ])
+        is_approximate = abs(lat - 12.6392) < 0.0005 and abs(lon - (-8.0029)) < 0.0005
 
         try:
             adresse = get_address(lat, lon)
+            if is_approximate and ("non disponible" in adresse.lower() or not adresse.strip()):
+                adresse = "Bamako, Mali (Centre - Position estimée)"
         except Exception:
-            adresse = "Position non disponible"
+            adresse = "Bamako, Mali (Centre - Position estimée)" if is_approximate else "Position non disponible"
 
+        zoom_lvl = 14 if is_approximate else 17
         carte_depot = folium.Map(
             location=[lat, lon],
-            zoom_start=17,
+            zoom_start=zoom_lvl,
             tiles='https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
             attr='&copy; OpenStreetMap &copy; CartoDB'
         )
@@ -1431,7 +1528,7 @@ def open_maps_modal(maps_clicks, close_clicks):
             'moyen': 'orange',
             'normal': 'green'
         }
-        couleur = couleurs.get(priorite, 'blue')
+        couleur = 'purple' if is_approximate else couleurs.get(priorite, 'blue')
 
         popup_text = f"""
         <div style="font-family: Arial; min-width: 180px;">
@@ -1462,7 +1559,13 @@ def open_maps_modal(maps_clicks, close_clicks):
 
         maps_link = f"https://www.google.com/maps/search/?api=1&query={lat},{lon}"
 
+        approx_banner = dbc.Alert([
+            html.I(className="fas fa-info-circle me-2"),
+            "Position approximative (centre de Bamako) : cette photo ne contenait pas de métadonnées GPS EXIF précises."
+        ], color="warning", className="py-2 text-center mb-3", style={'fontSize': '13px'}) if is_approximate else html.Div()
+
         return True, html.Div([
+            approx_banner,
             html.Div([
                 html.H5(
                     f"Dépôt #{depot_id}",
@@ -1597,11 +1700,11 @@ def analyser_callback(n, contents, filename, lat_manuel, lon_manuel):
         
         resultat = analyser_photo(chemin)
         priorite = resultat['priorite']
-        image_src = f"data:image/jpeg;base64,{base64.b64encode(decoded).decode()}"
+        image_src = f"data:image/jpeg;base64,{resultat.get('image_b64', base64.b64encode(decoded).decode())}"
         
         elements = [
-            html.Div([html.Img(src=image_src, style={'width': '100%', 'borderRadius': '8px', 'maxHeight': '300px', 'objectFit': 'cover'})], className="mb-3"),
-            html.H5("Résultat de l'analyse", className="text-center mb-3", style={'color': '#0f172a', 'fontWeight': '600'}),
+            html.Div([html.Img(src=image_src, style={'width': '100%', 'borderRadius': '8px', 'maxHeight': '320px', 'objectFit': 'contain', 'backgroundColor': '#0f172a'})], className="mb-3"),
+            html.H5("Résultat de l'analyse IA", className="text-center mb-3", style={'color': '#0f172a', 'fontWeight': '700'}),
             html.Hr(),
             html.Div([html.H6("Localisation", style={'fontWeight': '600', 'color': '#0f172a'})]),
         ]
@@ -1625,7 +1728,7 @@ def analyser_callback(n, contents, filename, lat_manuel, lon_manuel):
             ])
         else:
             elements.extend([
-                html.Div([html.I(className="fas fa-exclamation-circle", style={'color': '#f59e0b'}), html.Span(" GPS non trouvé dans l'image", style={'color': '#f59e0b', 'fontSize': '13px'})], className="mb-1"),
+                html.Div([html.I(className="fas fa-exclamation-circle", style={'color': '#f59e0b'}), html.Span(" GPS non trouvé dans l'image (position Bamako)", style={'color': '#f59e0b', 'fontSize': '13px'})], className="mb-1"),
                 html.Div([html.Span("Latitude: ", style={'color': '#64748b', 'fontSize': '13px'}), html.Span(f"{lat:.6f}", style={'fontWeight': '600', 'color': '#0f172a'})], className="mb-1"),
                 html.Div([html.Span("Longitude: ", style={'color': '#64748b', 'fontSize': '13px'}), html.Span(f"{lon:.6f}", style={'fontWeight': '600', 'color': '#0f172a'})], className="mb-1"),
             ])
@@ -1668,31 +1771,42 @@ def analyser_callback(n, contents, filename, lat_manuel, lon_manuel):
             if nb_dechets == 1:
                 elements.append(html.Div([
                     html.I(className="fas fa-check-circle", style={'color': '#22c55e'}),
-                    html.Span(" 1 déchet détecté", style={'color': '#22c55e', 'fontWeight': '600'})
+                    html.Span(" 1 déchet détecté et encadré", style={'color': '#22c55e', 'fontWeight': '600'})
                 ], className="mb-1"))
             else:
                 elements.append(html.Div([
                     html.I(className="fas fa-check-circle", style={'color': '#22c55e'}),
-                    html.Span(f" {nb_dechets} déchets détectés", style={'color': '#22c55e', 'fontWeight': '600'})
+                    html.Span(f" {nb_dechets} déchets détectés et encadrés", style={'color': '#22c55e', 'fontWeight': '600'})
                 ], className="mb-1"))
         
         elements.append(html.Hr())
         elements.extend([
             html.Div([html.H6("Estimation & Priorité", style={'fontWeight': '600', 'color': '#0f172a'})]),
-            html.Div([html.Span("Surface estimée: ", style={'color': '#64748b', 'fontSize': '13px'}), html.Span(f"{resultat['volume']} m²", style={'fontWeight': '700', 'color': '#3b82f6', 'fontSize': '18px'})], className="mb-1"),
-            html.Div([html.Span("Priorité: ", style={'color': '#64748b', 'fontSize': '13px'}), html.Span(priorite.upper(), style={'fontWeight': '700', 'color': '#ef4444' if priorite == 'urgent' else '#f59e0b' if priorite == 'moyen' else '#22c55e'})], className="mb-2"),
+            html.Div([html.Span("Volume estimé: ", style={'color': '#64748b', 'fontSize': '13px'}), html.Span(f"{resultat['volume']} m³", style={'fontWeight': '700', 'color': '#3b82f6', 'fontSize': '18px'})], className="mb-1"),
+            html.Div([html.Span("Priorité calculée: ", style={'color': '#64748b', 'fontSize': '13px'}), html.Span(priorite.upper(), style={'fontWeight': '700', 'color': '#ef4444' if priorite == 'urgent' else '#f59e0b' if priorite == 'moyen' else '#22c55e'})], className="mb-2"),
         ])
         
         if resultat['nb'] > 0:
-            success = add_detection(lat, lon, resultat['volume'], priorite, 'en_attente', nom)
-            elements.append(html.Div([
-                html.Hr(),
-                html.Div([
-                    html.I(className="fas fa-save me-1", style={'color': '#22c55e' if success else '#ef4444'}),
-                    html.Span("Sauvegardé dans la base" if success else "Erreur sauvegarde", 
-                             style={'color': '#22c55e' if success else '#ef4444', 'fontSize': '14px'})
-                ])
-            ]))
+            res_ajout = add_detection(lat, lon, resultat['volume'], priorite, 'en_attente', nom)
+            elements.append(html.Hr())
+            if res_ajout.get('success'):
+                elements.append(html.Div([
+                    html.I(className="fas fa-check-circle text-success me-2"),
+                    html.Span("Signalement enregistré dans la base de données", style={'color': '#22c55e', 'fontSize': '14px', 'fontWeight': '600'})
+                ]))
+                if res_ajout.get('is_doublon'):
+                    id_dup = res_ajout.get('id_doublon')
+                    dist = res_ajout.get('distance', 0)
+                    elements.append(html.Div([
+                        html.I(className="fas fa-exclamation-triangle text-warning me-2"),
+                        html.Span(f"Doublon détecté : situé à {dist:.1f}m du dépôt #{id_dup}. Consolidé en base.", 
+                                  style={'color': '#b45309', 'fontSize': '12px', 'fontWeight': '600'})
+                    ], className="alert alert-warning p-2 mt-2"))
+            else:
+                elements.append(html.Div([
+                    html.I(className="fas fa-times-circle text-danger me-2"),
+                    html.Span("Erreur lors de l'enregistrement", style={'color': '#ef4444', 'fontSize': '14px'})
+                ]))
         
         return html.Div(elements, style={'padding': '8px'})
     except Exception as e:
