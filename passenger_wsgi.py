@@ -15,5 +15,14 @@ os.environ['SANUYA_DB_USER'] = 'vuxe8870_sanuya_bko'
 os.environ['SANUYA_DB_PASSWORD'] = '%ri-l5ac8J?ahGGN'
 os.environ['SANUYA_DB_NAME'] = 'vuxe8870_sanuya'
 
+# Migration et initialisation automatique de la base MySQL (sans phpMyAdmin)
+try:
+    from database import init_mysql_db
+    ok, msg = init_mysql_db()
+    print(f"[O2SWITCH STARTUP] {msg}")
+except Exception as e:
+    print(f"[O2SWITCH STARTUP WARN] {e}")
+
 # Importer l'instance Flask sous-jacente de Dash
 from dashboard import server as application
+

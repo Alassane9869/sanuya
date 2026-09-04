@@ -2585,7 +2585,45 @@ def export_csv_route():
         print(f"[ERREUR] Export CSV HTTP : {e}")
         return f"Erreur export CSV: {e}", 500
 
+@server.route('/api/migrate')
+def api_migrate_route():
+    """Route web sécurisée permettant de déclencher ou vérifier la migration MySQL o2switch directement depuis le navigateur."""
+    try:
+        from database import init_mysql_db, get_connection
+        succes, message = init_mysql_db()
+        
+        # Récupération du nombre de lignes en base
+        count = 0
+        try:
+            conn = get_connection()
+            cursor = conn.cursor()
+            cursor.execute("SELECT COUNT(*) FROM signalements")
+            count = cursor.fetchone()[0]
+            cursor.close()
+            conn.close()
+        except Exception:
+            pass
+            
+        import json as py_json
+        return Response(
+            py_json.dumps({
+                "succes": succes,
+                "message": message,
+                "total_signalements": count,
+                "base_active": "MySQL o2switch (vuxe8870_sanuya)"
+            }, ensure_ascii=False, indent=2),
+            mimetype="application/json; charset=utf-8"
+        )
+    except Exception as e:
+        import json as py_json
+        return Response(
+            py_json.dumps({"succes": False, "erreur": str(e)}),
+            status=500,
+            mimetype="application/json; charset=utf-8"
+        )
+
 # ==================== CALLBACK SYNCHRONISATION URLS EXPORT ====================
+
 @app.callback(
     [Output("btn-export-excel-link", "href"),
      Output("btn-export-pdf-link", "href"),

@@ -309,16 +309,22 @@ Dès qu'un dépôt sauvage était marqué comme « Résolu » (traité par la vo
 
 ---
 
-### 2.16. Préparation au Déploiement en Production sur o2switch (`sanuya.danayaplus.com`)
+### 2.16. Déploiement et Migration 100% Automatisés sur o2switch (`sanuya.danayaplus.com`)
 
-####  Configuration et Fichiers Dédiés :
+####  Automatisation complète (Sans phpMyAdmin) :
+- **`deploy_o2switch.py` & `deploy.sh`** : Script tout-en-un exécutable en une seule commande qui :
+  1. Installe automatiquement l'ensemble des bibliothèques (`requirements.txt`).
+  2. Vérifie et crée la table `signalements` avec tous ses index directement en MySQL.
+  3. Migre l'ensemble des signalements existants depuis `sanuya.db` vers la base MySQL `vuxe8870_sanuya`.
+  4. Déclenche le rechargement à chaud de Phusion Passenger (`tmp/restart.txt`).
+- **Route de synchronisation web `/api/migrate`** : Point d'accès HTTP permettant de déclencher ou vérifier l'état de la base de données depuis n'importe quel navigateur web.
+- **`passenger_wsgi.py` auto-réparateur** : Déclenche l'initialisation et la migration dès le premier démarrage du serveur.
 - **`config.py`** : Prise en charge de la base de données de production MySQL (`vuxe8870_sanuya`, utilisateur `vuxe8870_sanuya_bko`, port 3306) avec détection automatique d'environnement o2switch (`/home/vuxe8870`).
-- **`passenger_wsgi.py`** : Création du point d'entrée WSGI requis par le gestionnaire d'applications Python cPanel d'o2switch (*Phusion Passenger*), exposant l'instance Flask `application = server`.
-- **`deploy_o2switch.sql`** : Script d'initialisation SQL complet avec création de table InnoDB utf8mb4 et insertion des données réelles de Bamako, prêt à importer en 1 clic dans phpMyAdmin.
-- **`requirements.txt`** : Mise à jour exhaustive des dépendances avec remplacement d'`opencv-python` par `opencv-python-headless` (indispensable sur serveur Linux cPanel dépourvu de serveur d'affichage X11/libGL).
-- **`GUIDE_DEPLOIEMENT_O2SWITCH.md`** : Rédaction d'un guide étape par étape illustrant la procédure complète sur cPanel o2switch.
+- **`requirements.txt`** : Mise à jour exhaustive des dépendances avec `opencv-python-headless` (indispensable sur serveur Linux cPanel).
+- **`GUIDE_DEPLOIEMENT_O2SWITCH.md`** : Guide pas à pas ultra-simplifié en 3 étapes.
 
 ---
+
 
 ## 🔒 4. Confidentialité et Données Sensibles
 

@@ -1,89 +1,74 @@
-# Guide de Déploiement SANUYA sur o2switch (cPanel)
+# Guide de Déploiement SANUYA sur o2switch (Automatisé à 100%)
 
-Ce guide détaille la mise en production de **SANUYA** sur l'hébergement o2switch pour le sous-domaine **`sanuya.danayaplus.com`**.
+Ce guide détaille la mise en production de **SANUYA** sur l'hébergement o2switch pour **`sanuya.danayaplus.com`**.
+
+> 💡 **ZÉRO MANIPULATION PHPMYADMIN REQUISE** :  
+> Le script `deploy_o2switch.py` installe automatiquement toutes les dépendances pip, crée les tables MySQL, migre l'ensemble des données et redémarre l'application.
 
 ---
 
-## 1. Récapitulatif des identifiants & configuration
+## 1. Identifiants & Configuration Déjà Intégrés
 
-* **Domaine** : `sanuya.danayaplus.com`
+* **Sous-domaine** : `sanuya.danayaplus.com`
 * **Compte cPanel** : `vuxe8870`
-* **Base de données MySQL** : `vuxe8870_sanuya`
+* **Base MySQL** : `vuxe8870_sanuya`
 * **Utilisateur MySQL** : `vuxe8870_sanuya_bko`
 * **Mot de passe** : `%ri-l5ac8J?ahGGN`
-* **Hôte MySQL (sur le serveur o2switch)** : `localhost` (Port 3306)
+* **Hôte** : `localhost`
 
 ---
 
-## 2. Étape 1 : Initialiser la Base de Données dans phpMyAdmin
+## 2. Procédure Ultra-Simple (3 Étapes)
 
-1. Connectez-vous à votre **cPanel o2switch**.
-2. Dans la section **Bases de données**, cliquez sur **phpMyAdmin**.
-3. Dans la colonne de gauche, cliquez sur la base **`vuxe8870_sanuya`**.
-4. Cliquez sur l'onglet supérieur **Importer**.
-5. Cliquez sur **Choisir un fichier** et sélectionnez le fichier **`deploy_o2switch.sql`** (situé à la racine du projet).
-6. Cliquez sur le bouton **Exécuter** tout en bas.
-   > ✅ La table `signalements` et les données initiales sont créées.
-
----
-
-## 3. Étape 2 : Envoyer les fichiers du projet sur o2switch
-
-Vous pouvez utiliser soit **Git Version Control** de cPanel, soit le **Gestionnaire de fichiers** (ou FTP/FileZilla) :
-
-1. Dans cPanel, ouvrez le **Gestionnaire de fichiers**.
-2. Créez un dossier dédié à la racine de votre compte (par exemple `/home/vuxe8870/sanuya/` ou dans le dossier associé au sous-domaine `sanuya.danayaplus.com`).
-3. Téléversez l'ensemble des fichiers du projet dans ce dossier :
-   - `dashboard.py`, `database.py`, `config.py`
-   - `passenger_wsgi.py` *(essentiel pour o2switch)*
-   - `requirements.txt`
-   - Les modèles `yolov8n.pt`, `yolov8m.pt`
-   - Les dossiers `images_test/`, `assets/` (si présents)
+### Étape 1 : Cloner le projet sur cPanel (Git Version Control)
+1. Dans votre cPanel o2switch, ouvrez **Git Version Control**.
+2. Cliquez sur **Create**.
+3. Remplissez :
+   * **Clone URL** : `https://github.com/Alassane9869/sanuya.git`
+   * **Repository Path** : `sanuya` (ou le chemin de votre sous-domaine)
+   * **Branch** : `main`
+4. Cliquez sur **Create** pour cloner le code.
 
 ---
 
-## 4. Étape 3 : Créer l'application Python dans cPanel
-
-1. Dans votre cPanel, cherchez et cliquez sur **« Configurer une application Python »** (*Setup Python App*).
-2. Cliquez sur **Créer une application** (*Create Application*).
-3. Remplissez les champs suivants :
-   * **Version de Python** : Sélectionnez **3.10** ou **3.11**.
-   * **Application root (Racine de l'application)** : Le chemin de votre dossier (ex: `sanuya` ou le chemin complet).
-   * **Application URL** : Choisissez `sanuya.danayaplus.com` dans la liste déroulante.
-   * **Application startup file** : Indiquez **`passenger_wsgi.py`**.
-   * **Application Entry point** : Indiquez **`application`**.
-4. Cliquez sur le bouton **Créer** (*Create*) en haut à droite.
+### Étape 2 : Créer l'Application Python dans cPanel
+1. Allez dans **« Configurer une application Python »** (*Setup Python App*).
+2. Cliquez sur **Créer une application** :
+   * **Version de Python** : `3.10` ou `3.11`
+   * **Application root** : `sanuya`
+   * **Application URL** : Sélectionnez `sanuya.danayaplus.com`
+   * **Application startup file** : `passenger_wsgi.py`
+   * **Application Entry point** : `application`
+3. Cliquez sur **Créer**.
 
 ---
 
-## 5. Étape 4 : Installer les dépendances (pip)
+### Étape 3 : Lancer le Déploiement & Migration Automatique (1 seule commande)
 
-Une fois l'application créée dans cPanel :
-1. Sur la page de configuration de l'application, repérez la commande affichée en haut pour activer l'environnement virtuel, par exemple :
+1. Ouvrez le **Terminal** de cPanel (ou connectez-vous en SSH).
+2. Activez l'environnement virtuel et placez-vous dans le dossier (en copiant la commande indiquée en haut de votre page Python App, par exemple) :
    ```bash
    source /home/vuxe8870/virtualenv/sanuya/3.11/bin/activate && cd /home/vuxe8870/sanuya
    ```
-2. Dans la section **Configuration files** :
-   * Tapez `requirements.txt` puis cliquez sur **Add**.
-   * Cliquez ensuite sur le bouton **Run Pip Install**.
-3. *Alternative par Terminal cPanel / SSH* :
-   Ouvrez le **Terminal** cPanel, collez la commande d'activation ci-dessus, puis lancez :
+3. Lancez le script tout-en-un :
    ```bash
-   pip install -r requirements.txt
+   python deploy_o2switch.py
    ```
+   *(ou `bash deploy.sh`)*
+
+**Ce que le script fait automatiquement en quelques secondes :**
+* ✅ Met à jour pip et installe toutes les dépendances requises (`dash`, `opencv-python-headless`, `yolo`, `mysql-connector-python`, `reportlab`, etc.).
+* ✅ Se connecte à la base `vuxe8870_sanuya` et crée la table `signalements` avec tous les index optimisés.
+* ✅ Migre toutes les données réelles de signalements directement dans MySQL.
+* ✅ Notifie Passenger (`tmp/restart.txt`) pour redémarrer l'application.
 
 ---
 
-## 6. Étape 5 : Redémarrer et Tester
+## 3. Accès à la Plateforme
 
-1. Dans l'interface **Setup Python App**, cliquez sur **Restart** (bouton avec l'icône de flèche circulaire).
-2. Ouvrez votre navigateur et accédez à :  
-   👉 **`https://sanuya.danayaplus.com`**
-3. L'application Dash se charge et se connecte automatiquement à la base MySQL `vuxe8870_sanuya` en local sur le serveur o2switch.
+Ouvrez simplement votre navigateur sur :  
+👉 **`https://sanuya.danayaplus.com`**
 
----
-
-## 7. Points d'attention spécifiques o2switch
-
-* **OpenCV headless** : Sur o2switch, les bibliothèques d'affichage X11 (`libGL.so`) ne sont pas présentes. C'est pourquoi nous utilisons `opencv-python-headless` dans `requirements.txt` pour éviter toute erreur de chargement.
-* **Redémarrage après modification** : Chaque fois que vous modifiez un fichier Python (`dashboard.py`, `config.py`), cliquez sur **Restart** dans la page Python App pour recharger le processus Passenger.
+> 🔄 **Vérification / Synchronisation Web de secours** :  
+> Si besoin, l'URL suivante permet aussi de relancer la synchronisation directement depuis n'importe quel navigateur :  
+> `https://sanuya.danayaplus.com/api/migrate`

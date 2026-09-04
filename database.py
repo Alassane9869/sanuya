@@ -119,11 +119,126 @@ def init_sqlite_db():
     conn.close()
 
 
+_mysql_initialized = False
+
+def init_mysql_db():
+    """Initialise et migre automatiquement les données vers MySQL sur o2switch sans ouvrir phpMyAdmin."""
+    global _mysql_initialized
+    try:
+        import mysql.connector
+        conn = mysql.connector.connect(**DB_CONFIG)
+        cursor = conn.cursor()
+        
+        # 1. Création automatique de la table si inexistante
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS `signalements` (
+                `id` INT AUTO_INCREMENT PRIMARY KEY,
+                `latitude` DOUBLE NOT NULL,
+                `longitude` DOUBLE NOT NULL,
+                `volume` DOUBLE DEFAULT 0.0,
+                `priorite` VARCHAR(50) DEFAULT 'normal',
+                `statut` VARCHAR(50) DEFAULT 'en_attente',
+                `date_creation` DATETIME DEFAULT CURRENT_TIMESTAMP,
+                `photo_nom` VARCHAR(255) NULL,
+                `photo_chemin` VARCHAR(500) NULL,
+                `dechets_detectes` TEXT NULL,
+                `nb_dechets` INT DEFAULT 1,
+                `est_doublon` TINYINT(1) DEFAULT 0,
+                `doublon_de` INT NULL,
+                INDEX `idx_statut` (`statut`),
+                INDEX `idx_priorite` (`priorite`),
+                INDEX `idx_coords` (`latitude`, `longitude`)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+        """)
+        conn.commit()
+        
+        # 2. Vérifier si des données existent déjà
+        cursor.execute("SELECT COUNT(*) FROM `signalements`")
+        count = cursor.fetchone()[0]
+        
+        if count == 0:
+            print("[O2SWITCH] Base MySQL vide. Démarrage de la migration automatique des données...")
+            migre = False
+            
+            # Source 1 : sanuya.db (données réelles SQLite complètes)
+            if os.path.exists(SQLITE_PATH):
+                try:
+                    s_conn = sqlite3.connect(SQLITE_PATH)
+                    s_conn.row_factory = sqlite3.Row
+                    s_cur = s_conn.cursor()
+                    s_cur.execute("SELECT * FROM signalements")
+                    lignes = s_cur.fetchall()
+                    for r in lignes:
+                        cursor.execute("""
+                            INSERT INTO `signalements` 
+                            (`id`, `latitude`, `longitude`, `volume`, `priorite`, `statut`, `date_creation`, `photo_nom`, `photo_chemin`, `dechets_detectes`, `nb_dechets`, `est_doublon`, `doublon_de`)
+                            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                            ON DUPLICATE KEY UPDATE `statut`=VALUES(`statut`), `priorite`=VALUES(`priorite`), `volume`=VALUES(`volume`)
+                        """, (
+                            r['id'], r['latitude'], r['longitude'], r['volume'],
+                            r['priorite'], r['statut'], r['date_creation'],
+                            r['photo_nom'], r['photo_chemin'], r['dechets_detectes'],
+                            r['nb_dechets'], r['est_doublon'], r['doublon_de']
+                        ))
+                    conn.commit()
+                    s_conn.close()
+                    print(f"[O2SWITCH MIGRATION OK] {len(lignes)} signalements migrés de SQLite vers MySQL !")
+                    migre = True
+                except Exception as e_sql:
+                    print(f"[O2SWITCH MIGRATION WARN] Erreur SQLite -> MySQL : {e_sql}")
+            
+            # Source 2 : donnees_depots_export.csv (secours si pas de sanuya.db)
+            if not migre and os.path.exists(CSV_EXPORT_PATH):
+                try:
+                    df = pd.read_csv(CSV_EXPORT_PATH)
+                    images_dir = os.path.join(BASE_DIR, "images_test")
+                    images_dispo = sorted([f for f in os.listdir(images_dir) if f.lower().endswith(('.jpg', '.jpeg', '.png'))]) if os.path.exists(images_dir) else []
+                    
+                    for idx, row in df.iterrows():
+                        img_name = images_dispo[idx % len(images_dispo)] if images_dispo else None
+                        img_path = f"images_test/{img_name}" if img_name else None
+                        date_val = str(row.get('date', '')).strip()
+                        if len(date_val) == 16:
+                            date_val += ":00"
+                        cursor.execute("""
+                            INSERT INTO `signalements` 
+                            (`id`, `latitude`, `longitude`, `volume`, `priorite`, `statut`, `date_creation`, `photo_nom`, `photo_chemin`, `dechets_detectes`, `nb_dechets`)
+                            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        """, (
+                            int(row['id']) if 'id' in row and pd.notna(row['id']) else None,
+                            float(row['latitude']),
+                            float(row['longitude']),
+                            float(row['volume']) if 'volume' in row and pd.notna(row['volume']) else 0.0,
+                            str(row.get('priorite', 'normal')),
+                            str(row.get('statut', 'en_attente')),
+                            date_val or datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                            img_name,
+                            img_path,
+                            "Dechets plastiques, depots divers",
+                            1
+                        ))
+                    conn.commit()
+                    print(f"[O2SWITCH MIGRATION OK] {len(df)} signalements importés depuis le CSV vers MySQL !")
+                except Exception as e_csv:
+                    print(f"[O2SWITCH MIGRATION WARN] Erreur CSV -> MySQL : {e_csv}")
+                    
+        cursor.close()
+        conn.close()
+        _mysql_initialized = True
+        return True, "Base MySQL vérifiée et synchronisée avec succès !"
+    except Exception as e:
+        print(f"[O2SWITCH MIGRATION ERREUR] : {e}")
+        return False, str(e)
+
+
 def get_connection():
     """Retourne une connexion à la base de données (SQLite avec CustomConnection ou MySQL si configuré)."""
+    global _mysql_initialized
     if DB_BACKEND == 'mysql':
         try:
             import mysql.connector
+            if not _mysql_initialized:
+                init_mysql_db()
             conn = mysql.connector.connect(**DB_CONFIG)
             return conn
         except Exception as e:
@@ -135,6 +250,7 @@ def get_connection():
     conn = sqlite3.connect(SQLITE_PATH, factory=CustomConnection)
     conn.row_factory = sqlite3.Row
     return conn
+
 
 
 def get_signalements():
