@@ -1,0 +1,20 @@
+# ============================================================
+# Configuration Phusion Passenger / Apache pour o2switch
+# Domaine : sanuya.danayaplus.com
+# Compte  : vuxe8870
+# ============================================================
+
+# Forcer HTTPS
+RewriteEngine On
+RewriteCond %{HTTPS} off
+RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+
+# Configuration Passenger WSGI
+PassengerAppRoot "/home/vuxe8870/repositories/sanuya"
+PassengerBaseURI "/"
+PassengerAppType wsgi
+PassengerStartupFile passenger_wsgi.py
+
+# Options de sécurité et performances
+Options -Indexes
+DirectoryIndex disabled
