@@ -1,0 +1,8 @@
+---
+deployment:
+  tasks:
+    - export DEPLOYPATH=/home/vuxe8870/sanuya.danayaplus.com
+    - /bin/mkdir -p $DEPLOYPATH
+    - /bin/cp -rf . $DEPLOYPATH/
+    - /bin/mkdir -p $DEPLOYPATH/tmp
+    - /bin/touch $DEPLOYPATH/tmp/restart.txt
