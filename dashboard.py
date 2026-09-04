@@ -559,6 +559,7 @@ QUARTIERS_BAMAKO = [
     
     # Commune III (Rive Gauche Centre-Ouest / Colline)
     {"nom": "Bolibana", "commune": "Commune III", "lat": 12.6392, "lon": -8.0035},
+    {"nom": "Dabadani", "commune": "Commune III", "lat": 12.6415, "lon": -7.9995},
     {"nom": "Darsalam", "commune": "Commune III", "lat": 12.6460, "lon": -8.0060},
     {"nom": "Centre Commercial", "commune": "Commune III", "lat": 12.6370, "lon": -7.9970},
     {"nom": "Dravela", "commune": "Commune III", "lat": 12.6320, "lon": -8.0090},
@@ -649,7 +650,8 @@ def get_location_details(lat, lon):
                      raw_addr.get('suburb') or 
                      raw_addr.get('residential'))
             
-            if osm_q and osm_q.lower() not in ('centre ville', 'bamako', 'district de bamako', 'mali'):
+            # Ne prendre le quartier OSM que si le quartier officiel n'a pas été trouvé à proximité
+            if (not nearest_q or dist_m > 1500) and osm_q and osm_q.lower() not in ('centre ville', 'bamako', 'district de bamako', 'mali'):
                 quartier_nom = osm_q
                 
             rep = raw_addr.get('road') or raw_addr.get('amenity') or raw_addr.get('building')
