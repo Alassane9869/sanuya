@@ -9,12 +9,7 @@ RewriteEngine On
 RewriteCond %{HTTPS} off
 RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
 
-# Configuration Passenger WSGI
-PassengerAppRoot "/home/vuxe8870/repositories/sanuya"
+# Configuration Passenger WSGI par défaut
 PassengerBaseURI "/"
 PassengerAppType wsgi
 PassengerStartupFile passenger_wsgi.py
-
-# Options de sécurité et performances
-Options -Indexes
-DirectoryIndex disabled
