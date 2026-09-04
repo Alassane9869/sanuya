@@ -279,12 +279,12 @@ app.index_string = '''
             .btn-photo { background: #eff6ff; color: #3b82f6; }
             .btn-maps { background: #e8f5e9; color: #2e7d32; }
             
-            .badge-urgent { background: #fef2f2; color: #ef4444; }
-            .badge-moyen { background: #fffbeb; color: #f59e0b; }
-            .badge-normal { background: #f0fdf4; color: #22c55e; }
-            .badge-attente { background: #fffbeb; color: #f59e0b; }
-            .badge-cours { background: #eff6ff; color: #3b82f6; }
-            .badge-resolu { background: #f0fdf4; color: #22c55e; }
+            .badge-urgent { background: #fef2f2; color: #ef4444; border: 1px solid #fecaca; }
+            .badge-moyen { background: #fffbeb; color: #d97706; border: 1px solid #fde68a; }
+            .badge-normal { background: #f0fdf4; color: #16a34a; border: 1px solid #bbf7d0; }
+            .badge-en_attente, .badge-attente { background: #fff7ed; color: #ea580c; border: 1px solid #ffedd5; }
+            .badge-en_cours, .badge-cours { background: #eff6ff; color: #2563eb; border: 1px solid #dbeafe; }
+            .badge-resolu { background: #f0fdf4; color: #16a34a; border: 1px solid #bbf7d0; }
             
             .stats-container {
                 display: grid;
@@ -797,8 +797,7 @@ def generate_map():
     carte = folium.Map(
         location=[12.6392, -8.0029],
         zoom_start=13,
-        tiles='https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
-        attr='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>, &copy; CartoDB'
+        tiles='OpenStreetMap'
     )
     
     if not depots:
@@ -1241,11 +1240,17 @@ def update_liste_cartes(n_apply, n_reset, priorite, statut, search_id):
     if not depots:
         return html.Div("Aucun dépôt trouvé", className="text-muted", style={'padding': '40px', 'textAlign': 'center'})
     
+    statut_labels = {'en_attente': 'En attente', 'en_cours': 'En cours', 'resolu': 'Résolu'}
+    priorite_labels = {'urgent': 'Urgent', 'moyen': 'Moyen', 'normal': 'Normal'}
+
     cartes = []
     for d in depots:
         priorite_class = f"badge-{d['priorite']}" if d['priorite'] in ['urgent', 'moyen', 'normal'] else 'badge-normal'
-        statut_class = f"badge-{d['statut']}" if d['statut'] in ['en_attente', 'en_cours', 'resolu'] else 'badge-attente'
+        statut_class = f"badge-{d['statut']}" if d['statut'] in ['en_attente', 'en_cours', 'resolu'] else 'badge-en_attente'
         
+        statut_text = statut_labels.get(d['statut'], str(d['statut']).capitalize())
+        priorite_text = priorite_labels.get(d['priorite'], str(d['priorite']).capitalize())
+
         try:
             adresse = get_address(d['latitude'], d['longitude'])
         except:
@@ -1260,28 +1265,28 @@ def update_liste_cartes(n_apply, n_reset, priorite, statut, search_id):
                     html.Span(f"#{d['id']}", className="depot-id"),
                     html.Span(d['date'], className="depot-date"),
                     html.Span(f"{d['volume']} m³", className="depot-volume"),
-                    html.Span(d['priorite'], className=f"badge {priorite_class}"),
-                    html.Span(d['statut'], className=f"badge {statut_class}"),
-                    html.Span(adresse, className="text-muted", style={'fontSize': '12px'}),
+                    html.Span(priorite_text, className=f"badge {priorite_class}"),
+                    html.Span(statut_text, className=f"badge {statut_class}"),
+                    html.Span(adresse, className="text-muted ms-2", style={'fontSize': '12px', 'maxWidth': '260px', 'overflow': 'hidden', 'textOverflow': 'ellipsis', 'whiteSpace': 'nowrap'}),
                 ], className="depot-info"),
                 html.Div([
-                    html.Button("Photo", className="action-btn btn-photo",
+                    html.Button([html.I(className="fas fa-camera me-1"), "Photo"], className="action-btn btn-photo",
                                id={'type': 'btn-photo', 'index': d['id']}, n_clicks=0,
                                style={'marginRight': '4px'}),
                     html.Button(
-                        "Carte",
+                        [html.I(className="fas fa-map-marked-alt me-1"), "Carte"],
                         className="action-btn btn-maps",
                         id={'type': 'btn-maps', 'index': d['id']},
                         n_clicks=0,
                         style={'marginRight': '4px'}
                     ),
-                    html.Button("Statut", className="action-btn btn-status", 
+                    html.Button([html.I(className="fas fa-tasks me-1"), "Statut"], className="action-btn btn-status", 
                                id={'type': 'btn-status', 'index': d['id']}, n_clicks=0,
                                style={'marginRight': '4px'}),
-                    html.Button("Priorité", className="action-btn btn-priorite",
+                    html.Button([html.I(className="fas fa-flag me-1"), "Priorité"], className="action-btn btn-priorite",
                                id={'type': 'btn-priorite', 'index': d['id']}, n_clicks=0,
                                style={'marginRight': '4px'}),
-                    html.Button("Supprimer", className="action-btn btn-delete",
+                    html.Button([html.I(className="fas fa-trash-alt me-1"), "Supprimer"], className="action-btn btn-delete",
                                id={'type': 'btn-delete', 'index': d['id']}, n_clicks=0),
                 ], className="depot-actions")
             ], className="depot-card")
@@ -1302,8 +1307,12 @@ def open_status_modal(status_clicks, close_clicks):
     if not ctx.triggered:
         return False, ""
     
-    trigger_id = ctx.triggered[0]['prop_id'].split('.')[0]
+    trigger = ctx.triggered[0]
+    trigger_val = trigger.get('value')
+    if not trigger_val:
+        return False, ""
     
+    trigger_id = trigger['prop_id'].split('.')[0]
     if trigger_id == "modal-status-close":
         return False, ""
     
@@ -1340,8 +1349,12 @@ def open_priorite_modal(priorite_clicks, close_clicks):
     if not ctx.triggered:
         return False, ""
     
-    trigger_id = ctx.triggered[0]['prop_id'].split('.')[0]
+    trigger = ctx.triggered[0]
+    trigger_val = trigger.get('value')
+    if not trigger_val:
+        return False, ""
     
+    trigger_id = trigger['prop_id'].split('.')[0]
     if trigger_id == "modal-priorite-close":
         return False, ""
     
@@ -1378,8 +1391,12 @@ def open_delete_modal(delete_clicks, close_clicks):
     if not ctx.triggered:
         return False, ""
     
-    trigger_id = ctx.triggered[0]['prop_id'].split('.')[0]
+    trigger = ctx.triggered[0]
+    trigger_val = trigger.get('value')
+    if not trigger_val:
+        return False, ""
     
+    trigger_id = trigger['prop_id'].split('.')[0]
     if trigger_id == "modal-delete-close":
         return False, ""
     
@@ -1416,8 +1433,12 @@ def open_photo_modal(photo_clicks, close_clicks):
     if not ctx.triggered:
         return False, html.Div()
     
-    trigger_id = ctx.triggered[0]['prop_id'].split('.')[0]
+    trigger = ctx.triggered[0]
+    trigger_val = trigger.get('value')
+    if not trigger_val:
+        return False, html.Div()
     
+    trigger_id = trigger['prop_id'].split('.')[0]
     if trigger_id == "modal-photo-close":
         return False, html.Div()
     
@@ -1472,8 +1493,12 @@ def open_maps_modal(maps_clicks, close_clicks):
     if not ctx.triggered:
         return False, html.Div()
 
-    trigger_id = ctx.triggered[0]['prop_id'].split('.')[0]
+    trigger = ctx.triggered[0]
+    trigger_val = trigger.get('value')
+    if not trigger_val:
+        return False, html.Div()
 
+    trigger_id = trigger['prop_id'].split('.')[0]
     if trigger_id == "modal-map-close":
         return False, html.Div()
 
@@ -1519,8 +1544,7 @@ def open_maps_modal(maps_clicks, close_clicks):
         carte_depot = folium.Map(
             location=[lat, lon],
             zoom_start=zoom_lvl,
-            tiles='https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
-            attr='&copy; OpenStreetMap &copy; CartoDB'
+            tiles='OpenStreetMap'
         )
 
         couleurs = {

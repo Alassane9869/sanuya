@@ -166,6 +166,17 @@ Ouvrez ensuite votre navigateur sur : **`http://127.0.0.1:8050`**
 
 ---
 
+### 2.6. Tuiles Cartographiques & Résolution du Chevauchement des Modales
+
+- **Élimination du filigrane « API KEY REQUIRED »** :
+  - Le fournisseur de tuiles CartoDB exigeant désormais une clé d'API, les cartes affichaient un filigrane gênant. Remplacement par les tuiles officielles et gratuites **OpenStreetMap** (`tiles='OpenStreetMap'`), sans aucune clé requise ni restriction d'accès.
+- **Résolution du chevauchement des modales sur `/liste`** :
+  - Lors du chargement de la liste des dépôts, Dash initialisait les boutons d'action (`n_clicks=0`), déclenchant simultanément l'ouverture des 5 fenêtres modales (Statut, Priorité, Suppression, Photo, Carte) superposées les unes sur les autres.
+  - Ajout d'un contrôle strict `if not trigger_val: return False` dans chaque callback pour garantir qu'aucune modale ne s'ouvre au chargement de la page et qu'elles ne s'ouvrent qu'après un clic explicite de l'utilisateur.
+  - Harmonisation des classes CSS pour les badges de statut (`.badge-en_attente`, `.badge-en_cours`, `.badge-resolu`).
+
+---
+
 ## 🔒 4. Confidentialité et Données Sensibles
 
 Conformément aux directives, le dépôt GitHub est entièrement privé entre les collaborateurs autorisés :
