@@ -10,6 +10,14 @@ PassengerBaseURI "/"
 PassengerPython "/home/vuxe8870/virtualenv/sanuya.danayaplus.com/3.11/bin/python"
 # DO NOT REMOVE. CLOUDLINUX PASSENGER CONFIGURATION END
 
+# Directives pour LiteSpeed Web Server
+PassengerEnabled on
+PassengerAppType wsgi
+PassengerStartupFile passenger_wsgi.py
+
+# Bloquer l'affichage des dossiers bruts
+Options -Indexes
+
 # Forcer HTTPS
 RewriteEngine On
 RewriteCond %{HTTPS} off
