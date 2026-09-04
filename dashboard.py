@@ -3,6 +3,7 @@ from flask import request, Response
 from dash import dcc, html, Input, Output, State, dash_table, MATCH, ALL
 import dash_bootstrap_components as dbc
 from database import get_connection, init_sqlite_db
+import config
 from datetime import datetime, date, timedelta
 import pandas as pd
 import folium
@@ -1368,7 +1369,7 @@ sidebar = html.Div([
         html.Div([
             html.Div([
                 html.Span(className="pulse-dot me-2"),
-                html.Span("Système Actif (SQLite)", style={'fontSize': '11px', 'fontWeight': '600', 'color': '#cbd5e1'})
+                html.Span(f"Système Actif ({'MySQL Production' if getattr(config, 'DB_BACKEND', '') == 'mysql' else 'SQLite Local'})", style={'fontSize': '11px', 'fontWeight': '600', 'color': '#cbd5e1'})
             ], className="d-flex align-items-center mb-1"),
             html.Div("Bamako, Mali • v2.1 Pro", style={'fontSize': '10px', 'color': '#64748b'})
         ], style={'padding': '12px 14px', 'background': 'rgba(255,255,255,0.03)', 'borderRadius': '8px', 'border': '1px solid rgba(255,255,255,0.06)'})
@@ -1646,35 +1647,126 @@ def page_liste():
 # ==================== PAGE STATISTIQUES ====================
 def page_stats():
     return html.Div([
-        html.H1("Statistiques", className="page-title"),
-        html.P("Analyse complète des données", className="page-subtitle mb-4"),
+        # En-tête avec titre et filtres décisionnels
         html.Div([
-            dbc.Row([
-                dbc.Col([
-                    dbc.Card([
-                        dbc.CardHeader(html.H5("Répartition par priorité", className="mb-0")),
-                        dbc.CardBody([
-                            dcc.Graph(id="stats-priorite", config={'displayModeBar': False})
-                        ])
-                    ], className="shadow-sm border-0")
-                ], md=6),
-                dbc.Col([
-                    dbc.Card([
-                        dbc.CardHeader(html.H5("Répartition par statut", className="mb-0")),
-                        dbc.CardBody([
-                            dcc.Graph(id="stats-statut", config={'displayModeBar': False})
-                        ])
-                    ], className="shadow-sm border-0")
-                ], md=6),
-            ], className="mb-4"),
-            dbc.Card([
-                dbc.CardHeader(html.H5("Top 10 des dépôts par volume", className="mb-0")),
-                dbc.CardBody([
-                    dcc.Graph(id="stats-volume", config={'displayModeBar': False})
-                ])
-            ], className="shadow-sm border-0"),
-            dcc.Interval(id="interval-stats-graphs", interval=30000)
-        ])
+            html.Div([
+                html.H1("Statistiques & Décisionnel", className="page-title"),
+                html.P("Analyse volumétrique, spatiale et performance d'éradication des déchets à Bamako", className="page-subtitle mb-0"),
+            ]),
+            html.Div([
+                dbc.Row([
+                    dbc.Col([
+                        dcc.Dropdown(
+                            id="stats-filtre-commune",
+                            placeholder="Toutes les Communes",
+                            options=[
+                                {'label': 'Toutes les Communes', 'value': 'tous'},
+                                {'label': 'Commune I', 'value': 'Commune I'},
+                                {'label': 'Commune II', 'value': 'Commune II'},
+                                {'label': 'Commune III', 'value': 'Commune III'},
+                                {'label': 'Commune IV', 'value': 'Commune IV'},
+                                {'label': 'Commune V', 'value': 'Commune V'},
+                                {'label': 'Commune VI', 'value': 'Commune VI'},
+                            ],
+                            value='tous',
+                            clearable=False,
+                            style={'width': '180px', 'fontSize': '13px'}
+                        )
+                    ], xs=12, sm=6, md="auto"),
+                    dbc.Col([
+                        dcc.Dropdown(
+                            id="stats-filtre-priorite",
+                            placeholder="Toutes priorités",
+                            options=[
+                                {'label': 'Toutes priorités', 'value': 'tous'},
+                                {'label': '🚨 Urgent', 'value': 'urgent'},
+                                {'label': '⚠️ Moyen', 'value': 'moyen'},
+                                {'label': '✅ Normal', 'value': 'normal'},
+                            ],
+                            value='tous',
+                            clearable=False,
+                            style={'width': '160px', 'fontSize': '13px'}
+                        )
+                    ], xs=12, sm=6, md="auto"),
+                    dbc.Col([
+                        dbc.Button(
+                            [html.I(className="fas fa-sync-alt me-2"), "Actualiser"],
+                            id="btn-refresh-stats",
+                            color="light",
+                            className="btn-sm fw-semibold shadow-sm border text-secondary px-3 py-2",
+                            style={'borderRadius': '8px', 'height': '38px'}
+                        )
+                    ], xs=12, md="auto")
+                ], className="g-2 align-items-center")
+            ], className="mt-3 mt-lg-0")
+        ], className="d-flex flex-column flex-lg-row justify-content-between align-items-start align-items-lg-center mb-4"),
+
+        # Cartes KPI Récapitulatives (Summary Cards)
+        html.Div(id="stats-kpi-container", className="row g-3 mb-4"),
+
+        # Rangée 1 : Donut Priorité & Donut Statut
+        dbc.Row([
+            dbc.Col([
+                dbc.Card([
+                    dbc.CardHeader([
+                        html.Div([
+                            html.I(className="fas fa-exclamation-triangle text-warning me-2"),
+                            html.Span("Répartition par Niveau d'Urgence", className="fw-bold")
+                        ], className="d-flex align-items-center justify-content-between")
+                    ], className="bg-white border-bottom py-3"),
+                    dbc.CardBody([
+                        dcc.Graph(id="stats-priorite", config={'displayModeBar': False})
+                    ], className="p-2")
+                ], className="shadow-sm border-0 rounded-3 h-100")
+            ], md=6, className="mb-4"),
+            
+            dbc.Col([
+                dbc.Card([
+                    dbc.CardHeader([
+                        html.Div([
+                            html.I(className="fas fa-tasks text-primary me-2"),
+                            html.Span("Avancement de l'Éradication", className="fw-bold")
+                        ], className="d-flex align-items-center justify-content-between")
+                    ], className="bg-white border-bottom py-3"),
+                    dbc.CardBody([
+                        dcc.Graph(id="stats-statut", config={'displayModeBar': False})
+                    ], className="p-2")
+                ], className="shadow-sm border-0 rounded-3 h-100")
+            ], md=6, className="mb-4"),
+        ]),
+
+        # Rangée 2 : Volume par Quartier (Horizontal) & Top des dépôts
+        dbc.Row([
+            dbc.Col([
+                dbc.Card([
+                    dbc.CardHeader([
+                        html.Div([
+                            html.I(className="fas fa-map-marked-alt text-info me-2"),
+                            html.Span("Volume Cumulé par Quartier de Bamako (m³)", className="fw-bold")
+                        ], className="d-flex align-items-center justify-content-between")
+                    ], className="bg-white border-bottom py-3"),
+                    dbc.CardBody([
+                        dcc.Graph(id="stats-quartiers", config={'displayModeBar': False})
+                    ], className="p-2")
+                ], className="shadow-sm border-0 rounded-3 h-100")
+            ], md=6, className="mb-4"),
+
+            dbc.Col([
+                dbc.Card([
+                    dbc.CardHeader([
+                        html.Div([
+                            html.I(className="fas fa-chart-bar text-danger me-2"),
+                            html.Span("Top 10 des Dépôts les Plus Volumineux", className="fw-bold")
+                        ], className="d-flex align-items-center justify-content-between")
+                    ], className="bg-white border-bottom py-3"),
+                    dbc.CardBody([
+                        dcc.Graph(id="stats-volume", config={'displayModeBar': False})
+                    ], className="p-2")
+                ], className="shadow-sm border-0 rounded-3 h-100")
+            ], md=6, className="mb-4"),
+        ]),
+
+        dcc.Interval(id="interval-stats-graphs", interval=30000)
     ])
 
 # ==================== PAGE TESTER ====================
@@ -1701,29 +1793,41 @@ def page_tester():
                         ),
                         html.Div(id="upload-status", className="mt-2 text-center"),
                         html.Hr(className="my-3"),
-                        html.H6("Coordonnées GPS de secours", className="mb-1 fw-bold text-dark"),
-                        html.P("Appliquées seulement si la photo ne contient pas de géolocalisation EXIF automatique.", className="text-muted small mb-2"),
+                        html.H6("Géolocalisation & Quartier de secours", className="mb-1 fw-bold text-dark"),
+                        html.P("Si la photo provient du Web / WhatsApp (sans GPS EXIF), choisissez son quartier ou laissez la détection automatique par le nom de fichier.", className="text-muted small mb-2"),
+                        html.Label("Quartier de Bamako", style={'fontSize': '12px', 'color': '#64748b', 'fontWeight': '600'}),
+                        dcc.Dropdown(
+                            id="analyse-quartier-select",
+                            options=[{'label': '🔍 Détection automatique (via le nom ou EXIF)', 'value': 'auto'}] + [
+                                {'label': f"{q['nom']} ({q['commune']})", 'value': q['nom']}
+                                for q in sorted(QUARTIERS_BAMAKO, key=lambda x: x['nom'])
+                            ],
+                            value='auto',
+                            clearable=False,
+                            className="mb-2",
+                            style={'fontSize': '13px'}
+                        ),
                         dbc.Row([
                             dbc.Col([
-                                html.Label("Latitude", style={'fontSize': '12px', 'color': '#64748b'}),
+                                html.Label("Latitude GPS", style={'fontSize': '11px', 'color': '#64748b'}),
                                 dcc.Input(
                                     id="analyse-lat",
                                     type="number",
                                     value=12.6392,
                                     step=0.000001,
                                     className="form-control form-control-sm",
-                                    style={'borderRadius': '6px'}
+                                    style={'borderRadius': '6px', 'fontSize': '12px'}
                                 )
                             ], md=6),
                             dbc.Col([
-                                html.Label("Longitude", style={'fontSize': '12px', 'color': '#64748b'}),
+                                html.Label("Longitude GPS", style={'fontSize': '11px', 'color': '#64748b'}),
                                 dcc.Input(
                                     id="analyse-lon",
                                     type="number",
                                     value=-8.0029,
                                     step=0.000001,
                                     className="form-control form-control-sm",
-                                    style={'borderRadius': '6px'}
+                                    style={'borderRadius': '6px', 'fontSize': '12px'}
                                 )
                             ], md=6),
                         ], className="g-2"),
@@ -2660,7 +2764,35 @@ def handle_upload(contents, filename):
         return html.Span(f"📁 {len(contents)} photo(s) prête(s) pour l'analyse par lot", className="text-success fw-bold")
     return html.Span(f"📁 Fichier chargé : {filename}", style={'color': '#22c55e', 'fontWeight': '600'})
 
-def traiter_une_photo_unitaire(content_string, orig_filename, lat_manuel, lon_manuel):
+def detect_quartier_from_text(text):
+    if not text:
+        return None
+    import unicodedata
+    def normalize_str(s):
+        return ''.join(c for c in unicodedata.normalize('NFD', str(s).lower()) if unicodedata.category(c) != 'Mn')
+    text_norm = normalize_str(text)
+    # 1. Vérifier si un des 65+ quartiers de Bamako apparaît dans le texte/nom
+    for q in QUARTIERS_BAMAKO:
+        q_norm = normalize_str(q['nom'])
+        if len(q_norm) >= 4 and q_norm in text_norm:
+            return q
+    # 2. Vérifier si une commune apparaît (ex: "commune iv" ou "commune 4")
+    commune_aliases = {
+        'commune 1': 'Commune I', 'commune i': 'Commune I',
+        'commune 2': 'Commune II', 'commune ii': 'Commune II',
+        'commune 3': 'Commune III', 'commune iii': 'Commune III',
+        'commune 4': 'Commune IV', 'commune iv': 'Commune IV',
+        'commune 5': 'Commune V', 'commune v': 'Commune V',
+        'commune 6': 'Commune VI', 'commune vi': 'Commune VI',
+    }
+    for alias, c_name in commune_aliases.items():
+        if alias in text_norm:
+            for q in QUARTIERS_BAMAKO:
+                if q['commune'] == c_name:
+                    return q
+    return None
+
+def traiter_une_photo_unitaire(content_string, orig_filename, lat_manuel, lon_manuel, quartier_manuel='auto'):
     decoded = base64.b64decode(content_string)
     os.makedirs("images_test", exist_ok=True)
     nom = f"analyse_{datetime.now().strftime('%Y%m%d_%H%M%S_%f')}.jpg"
@@ -2671,6 +2803,7 @@ def traiter_une_photo_unitaire(content_string, orig_filename, lat_manuel, lon_ma
     gps_data = get_gps_from_exif(chemin)
     gps_precision = get_gps_precision(chemin)
     location_metadata = get_location_from_metadata(chemin)
+    detected_from_fn = detect_quartier_from_text(orig_filename)
     
     location_coords = None
     if location_metadata:
@@ -2683,7 +2816,27 @@ def traiter_une_photo_unitaire(content_string, orig_filename, lat_manuel, lon_ma
         lon = gps_data['longitude']
         gps_detecte = True
         precision = gps_precision if gps_precision else 5.0
-        gps_source = "GPS EXIF certifié"
+        gps_source = "GPS EXIF certifié (Appareil photo)"
+    elif quartier_manuel and quartier_manuel != 'auto':
+        q_sel = next((q for q in QUARTIERS_BAMAKO if q['nom'] == quartier_manuel), None)
+        if q_sel:
+            lat = q_sel['lat']
+            lon = q_sel['lon']
+            gps_detecte = False
+            precision = None
+            gps_source = f"Quartier sélectionné : {q_sel['nom']}"
+        else:
+            lat = lat_manuel if lat_manuel is not None else 12.6392
+            lon = lon_manuel if lon_manuel is not None else -8.0029
+            gps_detecte = False
+            precision = None
+            gps_source = "Coordonnées manuelles"
+    elif detected_from_fn:
+        lat = detected_from_fn['lat']
+        lon = detected_from_fn['lon']
+        gps_detecte = False
+        precision = None
+        gps_source = f"Détecté dans le nom : {detected_from_fn['nom']} ({detected_from_fn['commune']})"
     elif location_coords:
         lat = location_coords['latitude']
         lon = location_coords['longitude']
@@ -2695,7 +2848,7 @@ def traiter_une_photo_unitaire(content_string, orig_filename, lat_manuel, lon_ma
         lon = lon_manuel if lon_manuel is not None else -8.0029
         gps_detecte = False
         precision = None
-        gps_source = "Coordonnées par défaut"
+        gps_source = "Coordonnées manuelles (Secours)"
     
     loc_info = get_location_details(lat, lon)
     commune_nom = loc_info['commune']
@@ -2736,16 +2889,31 @@ def traiter_une_photo_unitaire(content_string, orig_filename, lat_manuel, lon_ma
 
 # ==================== CALLBACKS ANALYSE & VALIDATION PAR LOT ====================
 @app.callback(
+    [Output("analyse-lat", "value"),
+     Output("analyse-lon", "value")],
+    Input("analyse-quartier-select", "value"),
+    prevent_initial_call=True
+)
+def update_coords_from_quartier_select(quartier_nom):
+    if not quartier_nom or quartier_nom == 'auto':
+        return dash.no_update, dash.no_update
+    q_match = next((q for q in QUARTIERS_BAMAKO if q['nom'] == quartier_nom), None)
+    if q_match:
+        return q_match['lat'], q_match['lon']
+    return dash.no_update, dash.no_update
+
+@app.callback(
     [Output("analyse-result", "children"),
      Output("store-batch-analyses", "data")],
     Input("btn-analyser", "n_clicks"),
     [State("upload-photo", "contents"), 
      State("upload-photo", "filename"),
      State("analyse-lat", "value"), 
-     State("analyse-lon", "value")],
+     State("analyse-lon", "value"),
+     State("analyse-quartier-select", "value")],
     prevent_initial_call=True
 )
-def analyser_callback(n, contents, filename, lat_manuel, lon_manuel):
+def analyser_callback(n, contents, filename, lat_manuel, lon_manuel, quartier_manuel):
     if n is None or contents is None:
         return html.Div([
             html.I(className="fas fa-info-circle", style={'fontSize': '48px', 'color': '#94a3b8'}),
@@ -2765,7 +2933,7 @@ def analyser_callback(n, contents, filename, lat_manuel, lon_manuel):
             if not c or ',' not in c:
                 continue
             _, c_str = c.split(',')
-            info = traiter_une_photo_unitaire(c_str, fn, lat_manuel, lon_manuel)
+            info = traiter_une_photo_unitaire(c_str, fn, lat_manuel, lon_manuel, quartier_manuel)
             traites.append(info)
         
         if not traites:
@@ -2961,12 +3129,17 @@ def toggle_all_checks(n, current_values):
 
 # ==================== CALLBACK STATS GRAPHIQUES ====================
 @app.callback(
-    [Output("stats-priorite", "figure"),
+    [Output("stats-kpi-container", "children"),
+     Output("stats-priorite", "figure"),
      Output("stats-statut", "figure"),
+     Output("stats-quartiers", "figure"),
      Output("stats-volume", "figure")],
-    Input("interval-stats-graphs", "n_intervals")
+    [Input("interval-stats-graphs", "n_intervals"),
+     Input("btn-refresh-stats", "n_clicks"),
+     Input("stats-filtre-commune", "value"),
+     Input("stats-filtre-priorite", "value")]
 )
-def update_stats_graphs(n):
+def update_stats_graphs(n, n_refresh, filtre_commune, filtre_priorite):
     def create_empty_figure(message="Aucune donnée disponible"):
         fig = go.Figure()
         fig.add_annotation(
@@ -2974,159 +3147,255 @@ def update_stats_graphs(n):
             x=0.5,
             y=0.5,
             showarrow=False,
-            font=dict(size=16, color="#64748b")
+            font=dict(size=15, color="#64748b")
         )
         fig.update_layout(
             plot_bgcolor='rgba(0,0,0,0)',
             paper_bgcolor='rgba(0,0,0,0)',
-            height=350,
+            height=340,
             margin=dict(l=20, r=20, t=40, b=20)
         )
         return fig
     
+    empty_kpis = [
+        create_stat_card("Volume Estimé Total", "0.00", unit="m³", icon="fas fa-truck-moving", color="blue", subtitle="0 camion benne"),
+        create_stat_card("Taux d'Éradication", "0%", unit="", icon="fas fa-check-circle", color="green", subtitle="0 / 0 assaini"),
+        create_stat_card("Dépôts Urgents Actifs", "0", unit="sites", icon="fas fa-exclamation-triangle", color="red", subtitle="0 urgent"),
+        create_stat_card("Zone la plus Critique", "Aucune", unit="", icon="fas fa-map-marker-alt", color="orange", subtitle="Aucune donnée"),
+    ]
+
     try:
         conn = get_connection()
         if not conn:
             fig_empty = create_empty_figure("Impossible de se connecter à la base de données")
-            return fig_empty, fig_empty, fig_empty
+            return empty_kpis, fig_empty, fig_empty, fig_empty, fig_empty
         
         try:
             df = pd.read_sql("""
                 SELECT 
+                    id,
+                    latitude,
+                    longitude,
+                    volume,
                     priorite,
                     statut,
-                    volume,
-                    id
+                    date_creation
                 FROM signalements 
                 ORDER BY date_creation DESC
             """, conn)
             conn.close()
         except Exception as e:
             print(f"❌ Erreur lecture SQL: {e}")
-            fig_empty = create_empty_figure(f"Erreur de lecture: {str(e)}")
-            return fig_empty, fig_empty, fig_empty
+            fig_empty = create_empty_figure(f"Erreur SQL: {str(e)}")
+            return empty_kpis, fig_empty, fig_empty, fig_empty, fig_empty
         
         if df.empty:
-            fig_empty = create_empty_figure("Aucune donnée dans la base")
-            return fig_empty, fig_empty, fig_empty
+            fig_empty = create_empty_figure("Aucun signalement dans la base")
+            return empty_kpis, fig_empty, fig_empty, fig_empty, fig_empty
         
-        # --- Graphique 1: Priorité ---
+        # Attribution automatique du quartier et de la commune
+        quartiers = []
+        communes = []
+        for _, row in df.iterrows():
+            q, _ = find_nearest_quartier(row['latitude'], row['longitude'])
+            quartiers.append(q['nom'] if q else 'Bamako')
+            communes.append(q['commune'] if q else get_commune_bamako(row['latitude'], row['longitude']))
+        df['quartier'] = quartiers
+        df['commune'] = communes
+        
+        # Filtrage dynamique
+        if filtre_commune and filtre_commune != 'tous':
+            df = df[df['commune'] == filtre_commune]
+        if filtre_priorite and filtre_priorite != 'tous':
+            df = df[df['priorite'] == filtre_priorite]
+            
+        if df.empty:
+            fig_empty = create_empty_figure("Aucun signalement correspondant aux filtres")
+            return empty_kpis, fig_empty, fig_empty, fig_empty, fig_empty
+
+        # -------------------------------------------------------------
+        # 1. Calcul des indicateurs clés (KPIs)
+        # -------------------------------------------------------------
+        total_vol = float(df['volume'].sum())
+        nb_camions = max(1, round(total_vol / 6.0)) if total_vol > 0 else 0
+        total_sites = len(df)
+        nb_resolus = int((df['statut'] == 'resolu').sum())
+        taux_resolu = (nb_resolus / total_sites * 100.0) if total_sites > 0 else 0.0
+        nb_urgents = int((df['priorite'] == 'urgent').sum())
+        
+        vol_par_q = df.groupby('quartier')['volume'].sum().reset_index().sort_values(by='volume', ascending=False)
+        if not vol_par_q.empty:
+            top_q_nom = vol_par_q.iloc[0]['quartier']
+            top_q_vol = float(vol_par_q.iloc[0]['volume'])
+        else:
+            top_q_nom = "Aucun"
+            top_q_vol = 0.0
+
+        kpis = [
+            create_stat_card("Volume Estimé Total", f"{total_vol:.2f}", unit="m³", icon="fas fa-truck-moving", color="blue", subtitle=f"~{nb_camions} bennes de 6 m³ nécessaires"),
+            create_stat_card("Taux d'Éradication", f"{taux_resolu:.0f}%", unit="", icon="fas fa-check-circle", color="green", subtitle=f"{nb_resolus} sur {total_sites} sites assainis"),
+            create_stat_card("Dépôts Urgents Actifs", str(nb_urgents), unit="sites", icon="fas fa-exclamation-triangle", color="red", subtitle="Intervention requise < 24h"),
+            create_stat_card("Zone la plus Critique", top_q_nom, unit="", icon="fas fa-map-marker-alt", color="orange", subtitle=f"{top_q_vol:.2f} m³ cumulés"),
+        ]
+
+        # -------------------------------------------------------------
+        # 2. Graphique Donut : Priorité
+        # -------------------------------------------------------------
         try:
             priorite_counts = df['priorite'].value_counts().reset_index()
             priorite_counts.columns = ['priorite', 'count']
-            
             priorite_labels = {'urgent': 'Urgent', 'moyen': 'Moyen', 'normal': 'Normal'}
             priorite_counts['label'] = priorite_counts['priorite'].map(priorite_labels).fillna(priorite_counts['priorite'])
-            
-            couleurs_priorite = {'urgent': '#ef4444', 'moyen': '#f59e0b', 'normal': '#22c55e'}
-            couleurs = [couleurs_priorite.get(p, '#94a3b8') for p in priorite_counts['priorite']]
-            
+            couleurs_priorite = {'urgent': '#ef4444', 'moyen': '#f59e0b', 'normal': '#10b981'}
+            couleurs_p = [couleurs_priorite.get(p, '#94a3b8') for p in priorite_counts['priorite']]
+
             fig_priorite = go.Figure()
-            if not priorite_counts.empty:
-                fig_priorite.add_trace(go.Pie(
-                    labels=priorite_counts['label'],
-                    values=priorite_counts['count'],
-                    marker=dict(colors=couleurs, line=dict(color='#ffffff', width=2)),
-                    hole=0.55,
-                    textposition='inside',
-                    textinfo='percent+label',
-                    hoverinfo='label+value+percent'
-                ))
-            else:
-                fig_priorite.add_annotation(text="Aucune donnée", x=0.5, y=0.5, showarrow=False, font=dict(size=14, color="#94a3b8"))
-            
+            fig_priorite.add_trace(go.Pie(
+                labels=priorite_counts['label'],
+                values=priorite_counts['count'],
+                marker=dict(colors=couleurs_p, line=dict(color='#ffffff', width=2.5)),
+                hole=0.62,
+                textposition='inside',
+                textinfo='percent',
+                hoverinfo='label+value+percent'
+            ))
             fig_priorite.update_layout(
-                title=dict(text="Répartition par niveau d'urgence", font=dict(size=15, color="#0f172a", family="Inter")),
+                annotations=[dict(
+                    text=f"<b>{total_sites}</b><br><span style='font-size:11px;color:#64748b'>Sites</span>",
+                    x=0.5, y=0.5, font=dict(size=20, color="#0f172a", family="Inter"),
+                    showarrow=False
+                )],
+                showlegend=True,
+                legend=dict(orientation="h", yanchor="bottom", y=-0.15, xanchor="center", x=0.5),
                 plot_bgcolor='rgba(0,0,0,0)',
                 paper_bgcolor='rgba(0,0,0,0)',
                 font_color='#0f172a',
                 height=340,
-                margin=dict(l=20, r=20, t=50, b=20)
+                margin=dict(l=10, r=10, t=10, b=40)
             )
         except Exception as e:
             print(f"❌ Erreur graphique priorité: {e}")
             fig_priorite = create_empty_figure("Erreur graphique priorité")
-        
-        # --- Graphique 2: Statut ---
+
+        # -------------------------------------------------------------
+        # 3. Graphique Donut : Statut
+        # -------------------------------------------------------------
         try:
             statut_counts = df['statut'].value_counts().reset_index()
             statut_counts.columns = ['statut', 'count']
-            
             statut_labels = {'en_attente': 'En attente', 'en_cours': 'En cours', 'resolu': 'Résolu'}
             statut_counts['label'] = statut_counts['statut'].map(statut_labels).fillna(statut_counts['statut'])
-            
             couleurs_statut = {'en_attente': '#f59e0b', 'en_cours': '#3b82f6', 'resolu': '#10b981'}
-            statut_couleurs = [couleurs_statut.get(s, '#94a3b8') for s in statut_counts['statut']]
-            
+            couleurs_s = [couleurs_statut.get(s, '#94a3b8') for s in statut_counts['statut']]
+
             fig_statut = go.Figure()
-            if not statut_counts.empty:
-                fig_statut.add_trace(go.Pie(
-                    labels=statut_counts['label'],
-                    values=statut_counts['count'],
-                    marker=dict(colors=statut_couleurs, line=dict(color='#ffffff', width=2)),
-                    hole=0.55,
-                    textposition='inside',
-                    textinfo='percent+label',
-                    hoverinfo='label+value+percent'
-                ))
-            else:
-                fig_statut.add_annotation(text="Aucune donnée", x=0.5, y=0.5, showarrow=False, font=dict(size=14, color="#94a3b8"))
-            
+            fig_statut.add_trace(go.Pie(
+                labels=statut_counts['label'],
+                values=statut_counts['count'],
+                marker=dict(colors=couleurs_s, line=dict(color='#ffffff', width=2.5)),
+                hole=0.62,
+                textposition='inside',
+                textinfo='percent',
+                hoverinfo='label+value+percent'
+            ))
             fig_statut.update_layout(
-                title=dict(text="Avancement de l'éradication", font=dict(size=15, color="#0f172a", family="Inter")),
+                annotations=[dict(
+                    text=f"<b>{taux_resolu:.0f}%</b><br><span style='font-size:11px;color:#64748b'>Résolus</span>",
+                    x=0.5, y=0.5, font=dict(size=20, color="#10b981", family="Inter"),
+                    showarrow=False
+                )],
+                showlegend=True,
+                legend=dict(orientation="h", yanchor="bottom", y=-0.15, xanchor="center", x=0.5),
                 plot_bgcolor='rgba(0,0,0,0)',
                 paper_bgcolor='rgba(0,0,0,0)',
                 font_color='#0f172a',
                 height=340,
-                margin=dict(l=20, r=20, t=50, b=20)
+                margin=dict(l=10, r=10, t=10, b=40)
             )
         except Exception as e:
             print(f"❌ Erreur graphique statut: {e}")
             fig_statut = create_empty_figure("Erreur graphique statut")
-        
-        # --- Graphique 3: Volume ---
+
+        # -------------------------------------------------------------
+        # 4. Graphique Barres Horizontales : Volume par Quartier
+        # -------------------------------------------------------------
         try:
-            top_volumes = df.nlargest(10, 'volume')[['id', 'volume']]
+            vol_sorted = vol_par_q.sort_values(by='volume', ascending=True)
             
-            fig_volume = go.Figure()
-            if not top_volumes.empty:
-                fig_volume.add_trace(go.Bar(
-                    x=top_volumes['id'].astype(str),
-                    y=top_volumes['volume'],
-                    marker=dict(
-                        color=top_volumes['volume'],
-                        colorscale='Blues',
-                        showscale=False
-                    ),
-                    text=top_volumes['volume'].round(2),
-                    textposition='outside',
-                    texttemplate='%{text:.2f} m³'
-                ))
-            else:
-                fig_volume.add_annotation(text="Aucune donnée", x=0.5, y=0.5, showarrow=False, font=dict(size=14, color="#94a3b8"))
-            
-            fig_volume.update_layout(
-                title=dict(text="Top 10 des dépôts les plus volumineux (m³)", font=dict(size=15, color="#0f172a", family="Inter")),
+            fig_quartiers = go.Figure()
+            fig_quartiers.add_trace(go.Bar(
+                x=vol_sorted['volume'],
+                y=vol_sorted['quartier'],
+                orientation='h',
+                marker=dict(
+                    color=vol_sorted['volume'],
+                    colorscale=[[0, '#bae6fd'], [0.5, '#0284c7'], [1, '#0369a1']],
+                    line=dict(color='#ffffff', width=1)
+                ),
+                text=vol_sorted['volume'].apply(lambda v: f"{v:.2f} m³"),
+                textposition='outside',
+                cliponaxis=False
+            ))
+            fig_quartiers.update_layout(
                 plot_bgcolor='rgba(0,0,0,0)',
                 paper_bgcolor='rgba(0,0,0,0)',
                 font_color='#0f172a',
-                xaxis_title="Identifiant du dépôt (#ID)",
-                yaxis_title="Volume estimé (m³)",
+                xaxis=dict(showgrid=True, gridcolor='#f1f5f9', title="Volume cumulé (m³)", zeroline=False),
+                yaxis=dict(showgrid=False, title=""),
                 height=340,
-                margin=dict(l=20, r=20, t=50, b=30),
-                xaxis=dict(showgrid=True, gridcolor='#f1f5f9', showline=True, linecolor='#e2e8f0'),
-                yaxis=dict(showgrid=True, gridcolor='#f1f5f9', showline=True, linecolor='#e2e8f0', tickformat='.2f')
+                margin=dict(l=10, r=50, t=10, b=30)
+            )
+        except Exception as e:
+            print(f"❌ Erreur graphique quartiers: {e}")
+            fig_quartiers = create_empty_figure("Erreur graphique quartiers")
+
+        # -------------------------------------------------------------
+        # 5. Graphique Barres : Top des Dépôts les Plus Volumineux
+        # -------------------------------------------------------------
+        try:
+            top_10 = df.nlargest(10, 'volume').copy()
+            top_10['label'] = top_10.apply(lambda r: f"#{r['id']} {r['quartier']}", axis=1)
+            
+            bar_colors = []
+            for p in top_10['priorite']:
+                if p == 'urgent':
+                    bar_colors.append('#ef4444')
+                elif p == 'moyen':
+                    bar_colors.append('#f59e0b')
+                else:
+                    bar_colors.append('#10b981')
+            
+            fig_volume = go.Figure()
+            fig_volume.add_trace(go.Bar(
+                x=top_10['label'],
+                y=top_10['volume'],
+                marker=dict(
+                    color=bar_colors,
+                    line=dict(color='#ffffff', width=1.5)
+                ),
+                text=top_10['volume'].apply(lambda v: f"{v:.2f} m³"),
+                textposition='outside',
+                cliponaxis=False
+            ))
+            fig_volume.update_layout(
+                plot_bgcolor='rgba(0,0,0,0)',
+                paper_bgcolor='rgba(0,0,0,0)',
+                font_color='#0f172a',
+                xaxis=dict(showgrid=False, tickangle=-25),
+                yaxis=dict(showgrid=True, gridcolor='#f1f5f9', title="Volume (m³)", zeroline=False),
+                height=340,
+                margin=dict(l=20, r=20, t=10, b=60)
             )
         except Exception as e:
             print(f"❌ Erreur graphique volume: {e}")
             fig_volume = create_empty_figure("Erreur graphique volume")
-        
-        return fig_priorite, fig_statut, fig_volume
-        
+
+        return kpis, fig_priorite, fig_statut, fig_quartiers, fig_volume
+
     except Exception as e:
-        print(f"❌ Erreur générale stats graphiques : {e}")
-        fig_error = create_empty_figure(f"Erreur: {str(e)}")
-        return fig_error, fig_error, fig_error
+        print(f"❌ Erreur générale stats: {e}")
+        fig_err = create_empty_figure(f"Erreur inattendue: {e}")
+        return empty_kpis, fig_err, fig_err, fig_err, fig_err
 
 # ==================== CALLBACK NAVIGATION ====================
 @app.callback(
