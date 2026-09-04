@@ -208,13 +208,125 @@ Une barre violette flottante avec un bouton `<<` et un panneau surgissant *"Plot
 - Masquage CSS strict des sélecteurs `[class*="dash-debug"]` et `._dash-devtools` garantissant une interface 100% nette, sobre et prête pour une présentation client/direction.
 - Design épuré avec la police `Inter`, palette Slate-900 / Slate-50, et suppression de la faute d'unité sur les graphiques (`m³` au lieu de `m²`).
 
+### 2.9. Découpage Territorial SIG des 6 Communes & Traçage Multi-Produits
+
+- **Découpage territorial officiel (Commune I à VI)** :
+  - Intégration des polygones géographiques des 6 communes du District de Bamako sur la carte interactive avec teintes pastel distinctives et bordures pointillées.
+  - Algorithme de Ray-Casting en pur Python (`get_commune_bamako()`) pour le rattachement automatique et instantané de chaque signalement à sa commune d'après ses coordonnées GPS.
+  - Filtre par Commune sur la page `/liste` et intégration du badge territorial sur chaque fiche.
+- **Traçage visuel multi-produits par segmentation** :
+  - Catégorisation des déchets détectés par l'IA (Plastiques, Cartons/Papiers, Métaux, Gravats/Inertes, Pneus, Ordures mixtes).
+  - Masques semi-transparents colorés (overlay alpha 30%) avec contours nets de 2 px et décompte chiffré par produit sous la photo analysée (`🧴 Plastique ×3`, `📦 Carton ×1`, etc.).
+
+---
+
+### 2.10. Moteur de Résolution Géographique Ultra-Précis des Quartiers de Bamako (65+ Quartiers)
+
+#### ❌ Problème identifié :
+Les adresses affichées sur les cartes de dépôts étaient parfois vagues, tronquées ou mentionnaient des noms d'écoles ou de banques (ex: *"Ecole Fondamentale 1er Cycle..."*, *"BNDA..."*) au lieu du véritable **Quartier de Bamako**.
+
+####  Solutions apportées :
+- **Référentiel géographique complet de Bamako** : Intégration d'un dictionnaire exhaustif des 65+ quartiers officiels des 6 communes (Bolibana, Badialan I, Lafiabougou, Badalabougou, Sogoniko, Banconi, etc.) avec leurs centroïdes GPS.
+- **Extraction intelligente OpenStreetMap & Algorithme du Plus Proche Voisin (K-NN géodésique)** :
+  - Priorisation des champs `quarter`, `suburb` et `neighbourhood` pour éliminer les noms de banques/écoles.
+  - Algorithme de repli calculant automatiquement le quartier le plus proche en quelques millisecondes si l'API est imprécise.
+- **Affichage pro & lisible** :
+  - Badge rouge dédié `[📍 Qt. NomDuQuartier]` sur chaque carte de dépôt sur `/liste`.
+  - Mention du quartier exact dans les popups et tooltips de la carte interactive.
+  - Colonne dédiée `Quartier exact` dans les exports Excel et PDF.
+
+---
+
+### 2.11. Exports Professionnels Natifs (Excel .xlsx stylisé, Rapport PDF & CSV)
+
+#### ❌ Problème identifié :
+Lors du téléchargement depuis certains navigateurs comme Microsoft Edge sous Windows 11, les fichiers générés par un composant Blob client prenaient parfois un nom temporaire hexadécimal (GUID / UUID) sans extension.
+
+####  Solutions apportées :
+- **Points d'accès HTTP natifs du serveur Flask** (`/export/excel`, `/export/pdf`, `/export/csv`) envoyant l'en-tête officiel standardisé RFC 6266 `Content-Disposition: attachment; filename="sanuya_depots_AAAAMMJJ_HHMM.xlsx"`.
+- **Classeur Excel (.xlsx) stylisé avec OpenPyXL** : En-têtes ardoise foncé (`#1E293B`), texte blanc gras, zébrage alterné gris clair, colonnes auto-ajustées et liens cliquables Google Maps.
+### 2.12. Suppression des Redirections Externes Google Maps & Navigation 100% Interne
+
+#### ❌ Problème identifié :
+Lorsqu'un utilisateur cliquait sur le bouton *"Ouvrir dans Google Maps ↗"* dans le popup d'un dépôt ou dans la modale cartographique, le navigateur ouvrait un onglet externe Google Maps. Cela coupait la continuité d'utilisation et faisait sortir l'utilisateur de l'application Sanuya.
+
+####  Solutions apportées :
+- **Remplacement dans les popups de la carte principale (`/`)** :
+  - Suppression totale du lien et bouton externe Google Maps.
+  - Intégration d'un bloc logistique d'aide à la décision : calcul automatique du besoin en camions (`🚚 ~X benne(s) de 5 m³ requise(s)`).
+  - Affichage direct et précis des coordonnées GPS décimales (`📍 GPS : 12.65874, -8.01452`).
+  - Bouton de navigation interne vers la liste de gestion : `📋 Gérer dans la Liste des Dépôts` (lien interne direct vers `/liste`).
+- **Modernisation de la modale cartographique (`/liste`)** :
+  - Suppression du bouton de redirection externe Google Maps.
+  - Ajout d'un contrôle multi-couches interactif intégré à la modale : basculement direct entre **OpenStreetMap Standard** et **Vue Satellite HD Esri** sans quitter la fenêtre.
+  - Bouton de navigation interne `Explorer sur le SIG Principal` (ramenant directement sur la vue globale `/`).
+
+---
+
+### 2.13. Visibilité et Traçabilité Pérenne des Dépôts Traités (Statut « Résolu »)
+
+#### ❌ Problème identifié :
+Dès qu'un dépôt sauvage était marqué comme « Résolu » (traité par la voirie), il disparaissait instantanément de l'affichage de la liste `/liste` ainsi que de la carte générale `/`. Les superviseurs ne pouvaient plus suivre les interventions réalisées ni attester du nettoyage.
+- *Origine technique :* Dans `get_depots_filtres()`, la condition par défaut `if filtre_statut == 'tous': query += " AND statut != 'resolu'"` excluait systématiquement les signalements résolus. De même, la fonction `generate_map()` exécutait `depots = [d for d in depots if d['statut'] != 'resolu']`.
+
+####  Solutions apportées :
+- **Préservation intégrale dans la liste (`/liste`)** :
+  - L'option par défaut **« Tous les statuts (Actifs & Résolus) »** affiche désormais l'ensemble de l'historique sans aucune perte, avec mise en valeur du badge vert `[Résolu]`.
+  - Ajout d'un filtre ciblé **« Dépôts actifs uniquement (À traiter) »** pour masquer les résolus à la demande des agents d'intervention.
+  - Actualisation instantanée et fluide des cartes lors de la validation du statut dans la modale sans rechargement de page.
+- **Calque dédié sur la carte SIG (`/`)** :
+  - Séparation cartographique en deux couches distinctes dans Folium :
+    - `🚨 Dépôts Actifs (À évacuer)` : marqueurs poubelle avec code couleur d'urgence (rouge/orange/bleu) et zone d'impact sanitaire.
+    - `✅ Dépôts Traités & Résolus` : marqueurs verts avec icône de coche (`fa-check`), badge `[✅ RÉSOLU]`, volume évacué et cercle d'assainissement vert clair.
+  - Chacun de ces calques peut être activé ou désactivé indépendamment via le sélecteur de couches SIG en haut à droite.
+
+---
+
+### 2.14. Console de Contrôle Qualité et Ingestion Multi-Images par Lot (`/tester`)
+
+####  Fonctionnalités implémentées :
+- **Sélection et analyse multi-fichiers** : Prise en charge du glisser-déposer de plusieurs photos simultanément via `dcc.Upload(multiple=True)`.
+- **Analyse IA sans enregistrement direct** : Les photos sont d'abord analysées en mémoire/tampon (`dcc.Store(id="store-batch-analyses")`) pour permettre une validation humaine préalable (*Human-in-the-Loop*).
+- **Fiches d'inspection individuelles complètes** :
+  - Cliché annoté avec boîtes englobantes et masques de segmentation IA selon la typologie des matières.
+  - Badge GPS EXIF certifié, quartier et commune de Bamako résolus avec adresse indicative.
+  - Décompte précis des déchets et ventilation des matières détectées (`Plastique ×3`, `Carton ×1`, etc.).
+  - Calcul volumétrique et estimation du nombre de bennes de 5 m³.
+  - Détection automatique des doublons dans un rayon de 50 m avec désactivation de sécurité préventive.
+- **Validation granulaire par cases à cocher** :
+  - Chaque fiche dispose d'une case à cocher `[x] Confirmer l'enregistrement`.
+  - Bouton global `Enregistrer les dépôts cochés dans Sanuya` pour persister uniquement les fiches validées.
+  - Bouton d'inversion / sélection rapide.
+
+---
+
+### 2.15. Enrichissement de l'Aperçu Cartographique au Survol (Tooltip)
+
+####  Solutions apportées :
+- **Vignette photo instantanée** : Intégration de la photo du dépôt directement dans le `folium.Tooltip(sticky=True)` au survol des épingles.
+- **Résolution des chemins absolus** : Garantie de chargement des images même en cas de variation du répertoire d'exécution.
+- **Suppression du regroupement parasite ("2")** : Séparation des marqueurs et des cercles d'influence sanitaire dans des couches indépendantes avec `interactive=False` pour éviter l'interception des clics.
+
+---
+
+### 2.16. Préparation au Déploiement en Production sur o2switch (`sanuya.danayaplus.com`)
+
+####  Configuration et Fichiers Dédiés :
+- **`config.py`** : Prise en charge de la base de données de production MySQL (`vuxe8870_sanuya`, utilisateur `vuxe8870_sanuya_bko`, port 3306) avec détection automatique d'environnement o2switch (`/home/vuxe8870`).
+- **`passenger_wsgi.py`** : Création du point d'entrée WSGI requis par le gestionnaire d'applications Python cPanel d'o2switch (*Phusion Passenger*), exposant l'instance Flask `application = server`.
+- **`deploy_o2switch.sql`** : Script d'initialisation SQL complet avec création de table InnoDB utf8mb4 et insertion des données réelles de Bamako, prêt à importer en 1 clic dans phpMyAdmin.
+- **`requirements.txt`** : Mise à jour exhaustive des dépendances avec remplacement d'`opencv-python` par `opencv-python-headless` (indispensable sur serveur Linux cPanel dépourvu de serveur d'affichage X11/libGL).
+- **`GUIDE_DEPLOIEMENT_O2SWITCH.md`** : Rédaction d'un guide étape par étape illustrant la procédure complète sur cPanel o2switch.
+
 ---
 
 ## 🔒 4. Confidentialité et Données Sensibles
 
-Conformément aux directives, le dépôt GitHub est entièrement privé entre les collaborateurs autorisés :
-- La base de données de travail `sanuya.db` est directement incluse dans le suivi Git afin de permettre à votre binôme de cloner le projet et d'avoir immédiatement un environnement opérationnel sans aucune étape de configuration de serveur requise.
-- Les fichiers de configuration `config.py` et les images de test sont prêts pour la collaboration immédiate.
+Conformément aux directives, le projet est configuré pour le travail d'équipe et le déploiement sécurisé :
+- La base de données de travail `sanuya.db` est synchronisée dans Git pour un démarrage autonome.
+- Le dossier `backups/` contenant les copies de sécurité temporaires est désormais ignoré par Git.
+- Les identifiants de production sont centralisés et protégés.
 
 ---
-*Ce rapport a été généré dans le cadre de la fiabilisation complète du projet Sanuya.*
+*Ce rapport a été mis à jour dans le cadre de la fiabilisation complète et du déploiement en production du projet Sanuya.*
+

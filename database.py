@@ -154,3 +154,30 @@ def get_signalements():
     df = pd.read_sql(query, conn)
     conn.close()
     return df
+
+
+def backup_database():
+    """Crée une copie de sauvegarde automatique horodatée de la base SQLite."""
+    try:
+        if not os.path.exists(SQLITE_PATH):
+            return None
+        import shutil
+        backup_dir = os.path.join(BASE_DIR, "backups")
+        os.makedirs(backup_dir, exist_ok=True)
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        backup_path = os.path.join(backup_dir, f"sanuya_backup_{timestamp}.db")
+        shutil.copy2(SQLITE_PATH, backup_path)
+        
+        # Conserver les 10 sauvegardes les plus récentes
+        backups = sorted([os.path.join(backup_dir, f) for f in os.listdir(backup_dir) if f.endswith('.db')])
+        if len(backups) > 10:
+            for old in backups[:-10]:
+                try:
+                    os.remove(old)
+                except Exception:
+                    pass
+        print(f"[OK] Sauvegarde automatique creee : {os.path.basename(backup_path)}")
+        return backup_path
+    except Exception as e:
+        print(f"[ERREUR] Erreur backup database: {e}")
+        return None

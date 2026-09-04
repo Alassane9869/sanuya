@@ -8,3 +8,4 @@ env/
 .idea/
 *.log
 runs/
+backups/

@@ -1,14 +1,22 @@
 # config.py
-# Configuration Base de données SANUYA
+# Configuration Base de données SANUYA (Production o2switch & Développement local)
+import os
 
-# Type de base de données : 'sqlite' (recommandé et autonome) ou 'mysql'
-DB_BACKEND = 'sqlite'
+# Détection automatique de l'environnement de production o2switch
+IS_O2SWITCH = os.path.exists('/home/vuxe8870')
+
+# Type de base de données : 'mysql' en production o2switch, 'sqlite' en local
+DB_BACKEND = os.getenv('SANUYA_DB_BACKEND', 'mysql' if IS_O2SWITCH else 'sqlite')
 SQLITE_DB = 'sanuya.db'
 
-# Configuration MySQL (utilisée si DB_BACKEND = 'mysql')
+# Configuration MySQL Production o2switch (sanuya.danayaplus.com)
 DB_CONFIG = {
-    'host': 'localhost',
-    'user': 'root',
-    'password': '27142005',  
-    'database': 'sanuya'
+    'host': os.getenv('SANUYA_DB_HOST', 'localhost'),
+    'user': os.getenv('SANUYA_DB_USER', 'vuxe8870_sanuya_bko'),
+    'password': os.getenv('SANUYA_DB_PASSWORD', '%ri-l5ac8J?ahGGN'),
+    'database': os.getenv('SANUYA_DB_NAME', 'vuxe8870_sanuya'),
+    'port': int(os.getenv('SANUYA_DB_PORT', 3306)),
+    'charset': 'utf8mb4'
 }
+
+DOMAINE_PRODUCTION = "sanuya.danayaplus.com"
