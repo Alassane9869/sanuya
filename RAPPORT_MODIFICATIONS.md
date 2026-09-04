@@ -177,6 +177,39 @@ Ouvrez ensuite votre navigateur sur : **`http://127.0.0.1:8050`**
 
 ---
 
+### 2.7. SIG Multi-Couches Avancé & Suppression des Rechargements Intempestifs
+
+#### ❌ Problème identifié :
+Sur le tableau de bord, la carte se rechargeait brutalement toutes les 5 secondes (due à l'intervalle `interval-stats` qui réécrivait la balise `iframe`). Dès que l'utilisateur tentait de zoomer, de déplacer la carte ou d'ouvrir un popup, la vue était réinitialisée au point de départ.
+
+####  Solutions apportées :
+- **Découplage des callbacks** :
+  - Les 4 cartes statistiques (KPI) se mettent à jour en arrière-plan sans toucher à la carte.
+  - La carte se charge proprement à l'ouverture de la page et reste parfaitement stable pendant toute la navigation.
+  - Ajout d'un bouton d'actualisation manuelle dédié (*« 🔄 Actualiser la carte »*) pour recharger la cartographie à la demande sans perturbation.
+- **Cartographie SIG Multi-Couches professionnelle** :
+  - **Plan Standard** (OpenStreetMap officiel).
+  - **🛰️ Vue Satellite HD** (Esri World Imagery) pour observer le terrain réel et les amoncellements de déchets.
+  - **🏔️ Relief Topographique** (OpenTopoMap) avec courbes de niveau.
+  - **🔥 HeatMap (Densité thermique)** activable en un clic pour visualiser les zones critiques d'accumulation.
+  - **Mini-carte de repérage** (MiniMap) en bas à gauche et bouton **Plein Écran** (Fullscreen).
+  - **Popups interactifs enrichis** : affichage de la miniature de la photo du dépôt, volume en $m^3$, niveau d'urgence, adresse géocodée et raccourci d'itinéraire GPS Google Maps.
+
+---
+
+### 2.8. Élimination des Éléments de Debug Parasites (Plotly Cloud & Dash DevTools)
+
+#### ❌ Problème identifié :
+Une barre violette flottante avec un bouton `<<` et un panneau surgissant *"Plotly Cloud - Install the extension to publish to Plotly Cloud (pip install dash[cloud])"* apparaissaient à l'écran. 
+- *Origine :* Ce n'était pas une erreur de code, mais la barre d'outils de debug injectée par Dash (`debug=True`) faisant la promotion des services Cloud de l'éditeur Plotly.
+
+####  Solutions apportées :
+- Désactivation de l'interface graphique de debug via `dev_tools_ui=False` dans `app.run()`.
+- Masquage CSS strict des sélecteurs `[class*="dash-debug"]` et `._dash-devtools` garantissant une interface 100% nette, sobre et prête pour une présentation client/direction.
+- Design épuré avec la police `Inter`, palette Slate-900 / Slate-50, et suppression de la faute d'unité sur les graphiques (`m³` au lieu de `m²`).
+
+---
+
 ## 🔒 4. Confidentialité et Données Sensibles
 
 Conformément aux directives, le dépôt GitHub est entièrement privé entre les collaborateurs autorisés :

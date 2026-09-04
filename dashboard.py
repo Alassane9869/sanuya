@@ -5,7 +5,7 @@ from database import get_connection, init_sqlite_db
 from datetime import datetime, date, timedelta
 import pandas as pd
 import folium
-from folium.plugins import MarkerCluster
+from folium.plugins import MarkerCluster, Fullscreen, MiniMap, HeatMap
 import os
 import cv2
 import base64
@@ -44,219 +44,187 @@ app.index_string = '''
         <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
         <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
         <style>
-            * { font-family: 'Inter', sans-serif; }
-            body { background: #f0f4f8; }
+            * { font-family: 'Inter', system-ui, -apple-system, sans-serif; box-sizing: border-box; }
+            body { background: #f8fafc; color: #1e293b; margin: 0; font-size: 14px; }
             
+            ::-webkit-scrollbar { width: 6px; height: 6px; }
+            ::-webkit-scrollbar-track { background: #f1f5f9; }
+            ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+            ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
             .sidebar-link {
-                transition: all 0.2s ease;
+                transition: all 0.15s ease-in-out;
                 color: #94a3b8 !important;
                 font-weight: 500;
+                font-size: 13.5px;
+                border-left: 3px solid transparent;
             }
             .sidebar-link:hover {
-                background: rgba(255,255,255,0.05);
-                color: #ffffff !important;
+                background: rgba(255,255,255,0.06);
+                color: #f8fafc !important;
             }
             .sidebar-link.active {
-                background: rgba(255,255,255,0.08);
+                background: rgba(56, 189, 248, 0.12);
                 color: #ffffff !important;
-                border-right: 3px solid #00d4ff;
+                font-weight: 600;
+                border-left: 3px solid #38bdf8;
             }
-            .sidebar-link i { width: 20px; text-align: center; }
+            .sidebar-link i { width: 22px; text-align: center; }
             
             .page-title {
-                font-weight: 700;
+                font-weight: 800;
                 color: #0f172a;
-                font-size: 28px;
-                letter-spacing: -0.5px;
+                font-size: 26px;
+                letter-spacing: -0.6px;
+                margin-bottom: 2px;
             }
             .page-subtitle {
                 color: #64748b;
-                font-size: 15px;
-                margin-top: 4px;
+                font-size: 14px;
+                margin-bottom: 0;
             }
             
             .stat-card {
                 background: #ffffff;
-                border-radius: 16px;
-                padding: 20px 24px;
-                box-shadow: 0 1px 3px rgba(0,0,0,0.06);
-                border: 1px solid #e9edf2;
-                transition: transform 0.2s ease, box-shadow 0.2s ease;
-                position: relative;
-                overflow: hidden;
+                border-radius: 12px;
+                padding: 18px 20px;
+                box-shadow: 0 1px 3px 0 rgba(0,0,0,0.04), 0 1px 2px -1px rgba(0,0,0,0.04);
+                border: 1px solid #e2e8f0;
+                transition: transform 0.15s ease, box-shadow 0.15s ease;
             }
             .stat-card:hover {
-                transform: translateY(-4px);
-                box-shadow: 0 8px 25px rgba(0,0,0,0.08);
+                transform: translateY(-2px);
+                box-shadow: 0 6px 20px rgba(0,0,0,0.05);
+                border-color: #cbd5e1;
             }
-            .stat-card .number {
-                font-size: 32px;
-                font-weight: 700;
-                letter-spacing: -0.5px;
-                margin-bottom: 2px;
-            }
-            .stat-card .label {
-                font-size: 14px;
-                color: #64748b;
-                font-weight: 500;
-            }
-            .stat-card .icon {
-                position: absolute;
-                right: 20px;
-                top: 20px;
-                font-size: 28px;
-                opacity: 0.15;
-            }
-            .stat-card .glow {
-                position: absolute;
-                top: -50%;
-                right: -50%;
-                width: 100%;
-                height: 100%;
-                border-radius: 50%;
-                opacity: 0.03;
-                pointer-events: none;
-            }
-            .glow-blue { background: radial-gradient(circle, #3b82f6 0%, transparent 70%); }
-            .glow-red { background: radial-gradient(circle, #ef4444 0%, transparent 70%); }
-            .glow-orange { background: radial-gradient(circle, #f59e0b 0%, transparent 70%); }
-            .glow-green { background: radial-gradient(circle, #22c55e 0%, transparent 70%); }
 
             .content-card {
                 background: #ffffff;
-                border-radius: 16px;
-                padding: 24px;
-                box-shadow: 0 1px 3px rgba(0,0,0,0.06);
-                border: 1px solid #e9edf2;
+                border-radius: 14px;
+                padding: 22px 24px;
+                box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+                border: 1px solid #e2e8f0;
             }
-            .stats-grid {
-                display: grid;
-                grid-template-columns: repeat(4, 1fr);
-                gap: 16px;
-                margin-bottom: 24px;
-            }
-            .stats-grid-3 {
-                display: grid;
-                grid-template-columns: repeat(3, 1fr);
-                gap: 16px;
-                margin-bottom: 24px;
-            }
+
             .map-container {
-                height: 600px;
-                border-radius: 12px;
+                height: 620px;
+                border-radius: 10px;
                 overflow: hidden;
-                border: 1px solid #e9edf2;
+                border: 1px solid #e2e8f0;
+                background-color: #f1f5f9;
             }
             .map-container iframe {
                 width: 100%;
                 height: 100%;
                 border: none;
+                display: block;
             }
+
             .legend {
                 display: flex;
-                gap: 20px;
-                padding: 12px 16px;
+                gap: 16px;
+                padding: 12px 18px;
                 background: #f8fafc;
                 border-radius: 10px;
-                border: 1px solid #e9edf2;
-                margin-top: 12px;
+                border: 1px solid #e2e8f0;
+                margin-top: 14px;
                 flex-wrap: wrap;
             }
             .legend-item {
                 display: flex;
                 align-items: center;
                 gap: 8px;
-                font-size: 13px;
-                color: #475569;
+                font-size: 12.5px;
+                color: #334155;
             }
             .legend-dot {
-                width: 12px;
-                height: 12px;
+                width: 10px;
+                height: 10px;
                 border-radius: 50%;
+                display: inline-block;
             }
-            
+
+            .pulse-dot {
+                width: 8px;
+                height: 8px;
+                background-color: #10b981;
+                border-radius: 50%;
+                display: inline-block;
+                box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+                animation: pulse 1.8s infinite;
+            }
+            @keyframes pulse {
+                0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+                70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(16, 185, 129, 0); }
+                100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+            }
+
             .upload-area {
-                border: 2px dashed #e9edf2;
+                border: 2px dashed #cbd5e1;
                 border-radius: 12px;
-                padding: 40px;
+                padding: 36px 20px;
                 text-align: center;
                 cursor: pointer;
-                transition: 0.3s;
+                background: #f8fafc;
+                transition: all 0.2s ease;
             }
             .upload-area:hover {
-                border-color: #00d4ff;
-                background: #f8fafc;
+                border-color: #0284c7;
+                background: #f0f9ff;
             }
-            .upload-area i {
-                font-size: 48px;
-                color: #94a3b8;
-            }
-            
-            .filter-section {
-                display: flex;
-                gap: 20px;
-                flex-wrap: wrap;
-                margin-bottom: 16px;
-                padding: 16px;
-                background: #f8fafc;
-                border-radius: 12px;
-                align-items: flex-end;
-            }
-            .filter-group {
-                display: flex;
-                flex-direction: column;
-                gap: 4px;
-            }
-            .filter-group label {
-                font-size: 13px;
-                color: #64748b;
-                font-weight: 500;
-            }
-            .filter-group .dash-dropdown {
-                min-width: 160px;
-            }
-            
+
             .depot-card {
-                background: white;
-                border-radius: 12px;
-                padding: 16px;
+                background: #ffffff;
+                border-radius: 10px;
+                padding: 14px 18px;
                 margin-bottom: 8px;
-                border: 1px solid #e9edf2;
-                transition: all 0.2s ease;
+                border: 1px solid #e2e8f0;
+                transition: all 0.15s ease;
                 display: flex;
                 justify-content: space-between;
                 align-items: center;
                 flex-wrap: wrap;
+                gap: 12px;
             }
             .depot-card:hover {
-                box-shadow: 0 4px 12px rgba(0,0,0,0.06);
-                border-color: #00d4ff;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.04);
+                border-color: #94a3b8;
             }
             .depot-card .depot-info {
                 display: flex;
                 align-items: center;
-                gap: 16px;
+                gap: 12px;
                 flex-wrap: wrap;
             }
             .depot-card .depot-id {
-                font-weight: 700;
-                font-size: 16px;
+                font-weight: 800;
+                font-size: 14px;
                 color: #0f172a;
-                min-width: 60px;
+                min-width: 48px;
+                padding: 2px 8px;
+                background: #f1f5f9;
+                border-radius: 6px;
+                text-align: center;
             }
             .depot-card .depot-date {
-                font-size: 13px;
+                font-size: 12.5px;
                 color: #64748b;
             }
             .depot-card .depot-volume {
-                font-weight: 600;
+                font-weight: 700;
                 color: #0f172a;
+                font-size: 13px;
+                background: #f8fafc;
+                padding: 2px 8px;
+                border-radius: 6px;
+                border: 1px solid #e2e8f0;
             }
             .depot-card .badge {
-                padding: 4px 12px;
+                padding: 4px 10px;
                 border-radius: 20px;
-                font-size: 12px;
+                font-size: 11.5px;
                 font-weight: 600;
+                letter-spacing: 0.2px;
             }
             .depot-card .depot-actions {
                 display: flex;
@@ -264,40 +232,65 @@ app.index_string = '''
                 flex-wrap: wrap;
             }
             .depot-card .action-btn {
-                padding: 4px 12px;
-                border: none;
+                padding: 5px 12px;
+                border: 1px solid transparent;
                 border-radius: 6px;
                 font-size: 12px;
-                font-weight: 500;
+                font-weight: 600;
                 cursor: pointer;
-                transition: 0.2s;
+                transition: all 0.15s ease;
+                display: inline-flex;
+                align-items: center;
             }
-            .depot-card .action-btn:hover { opacity: 0.8; transform: scale(1.02); }
-            .btn-status { background: #fffbeb; color: #f59e0b; }
-            .btn-priorite { background: #f0fdf4; color: #22c55e; }
-            .btn-delete { background: #fef2f2; color: #ef4444; }
-            .btn-photo { background: #eff6ff; color: #3b82f6; }
-            .btn-maps { background: #e8f5e9; color: #2e7d32; }
+            .depot-card .action-btn:hover {
+                transform: translateY(-1px);
+                box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+            }
+            .btn-status { background: #fffbeb; color: #b45309; border-color: #fde68a; }
+            .btn-status:hover { background: #fef3c7; }
+            .btn-priorite { background: #f0fdf4; color: #15803d; border-color: #bbf7d0; }
+            .btn-priorite:hover { background: #dcfce7; }
+            .btn-delete { background: #fef2f2; color: #b91c1c; border-color: #fecaca; }
+            .btn-delete:hover { background: #fee2e2; }
+            .btn-photo { background: #eff6ff; color: #1d4ed8; border-color: #bfdbfe; }
+            .btn-photo:hover { background: #dbeafe; }
+            .btn-maps { background: #f0fdfa; color: #0f766e; border-color: #99f6e4; }
+            .btn-maps:hover { background: #ccfbf1; }
             
-            .badge-urgent { background: #fef2f2; color: #ef4444; border: 1px solid #fecaca; }
+            .badge-urgent { background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; }
             .badge-moyen { background: #fffbeb; color: #d97706; border: 1px solid #fde68a; }
             .badge-normal { background: #f0fdf4; color: #16a34a; border: 1px solid #bbf7d0; }
-            .badge-en_attente, .badge-attente { background: #fff7ed; color: #ea580c; border: 1px solid #ffedd5; }
-            .badge-en_cours, .badge-cours { background: #eff6ff; color: #2563eb; border: 1px solid #dbeafe; }
-            .badge-resolu { background: #f0fdf4; color: #16a34a; border: 1px solid #bbf7d0; }
-            
-            .stats-container {
-                display: grid;
-                grid-template-columns: 1fr 1fr;
-                gap: 20px;
-                margin-bottom: 20px;
+            .badge-en_attente, .badge-attente { background: #fff7ed; color: #c2410c; border: 1px solid #ffedd5; }
+            .badge-en_cours, .badge-cours { background: #eff6ff; color: #1d4ed8; border: 1px solid #dbeafe; }
+            .badge-resolu { background: #f0fdf4; color: #15803d; border: 1px solid #bbf7d0; }
+
+            .modal-content {
+                border-radius: 14px;
+                border: 1px solid #e2e8f0;
+                box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
             }
-            .stats-container .card {
-                margin-bottom: 0;
+            .modal-header {
+                border-bottom: 1px solid #f1f5f9;
+                font-weight: 700;
+                padding: 16px 20px;
             }
-            
-            @media (max-width: 768px) {
-                .stats-container { grid-template-columns: 1fr; }
+            .modal-footer {
+                border-top: 1px solid #f1f5f9;
+                padding: 12px 20px;
+            }
+
+            /* Masquer la barre d'outils Dash DevTools, le bouton violet << et promotion Plotly Cloud */
+            [class*="dash-debug"], 
+            .dash-debug-menu, 
+            .dash-debug-menu__outer, 
+            .dash-debug-menu__toggle, 
+            .dash-debug-alert, 
+            ._dash-devtools, 
+            .dash-fe-error__overlay {
+                display: none !important;
+                visibility: hidden !important;
+                opacity: 0 !important;
+                pointer-events: none !important;
             }
         </style>
     </head>
@@ -585,10 +578,19 @@ def get_stats_dashboard():
         
         cursor.execute("SELECT COUNT(*) FROM signalements WHERE statut = 'resolu'")
         resolu = cursor.fetchone()[0]
-        
+
+        cursor.execute("SELECT COALESCE(SUM(volume), 0) FROM signalements WHERE statut != 'resolu'")
+        vol_row = cursor.fetchone()
+        vol_total = float(vol_row[0]) if vol_row and vol_row[0] is not None else 0.0
+
         conn.close()
-        return {'total': total, 'urgent': urgent, 'moyen': moyen, 'normal': normal,
-                'attente': attente, 'cours': cours, 'resolu': resolu}
+        taux_res = round((resolu / (total + resolu)) * 100, 1) if (total + resolu) > 0 else 0.0
+        return {
+            'total': total, 'urgent': urgent, 'moyen': moyen, 'normal': normal,
+            'attente': attente, 'cours': cours, 'resolu': resolu,
+            'volume_total': round(vol_total, 2),
+            'taux_resolution': taux_res
+        }
     except Exception as e:
         print(f"❌ Erreur stats dashboard : {e}")
         return {}
@@ -789,7 +791,7 @@ def analyser_photo(chemin):
         'chemin_annote': chemin_annote
     }
 
-# ==================== Generation de carte ====================
+# ==================== GENERATION DE CARTE SIG PRO ====================
 def generate_map():
     depots = get_depots_filtres()
     depots = [d for d in depots if d['statut'] != 'resolu']
@@ -797,8 +799,27 @@ def generate_map():
     carte = folium.Map(
         location=[12.6392, -8.0029],
         zoom_start=13,
-        tiles='OpenStreetMap'
+        tiles=None
     )
+    
+    # Couches de fond cartographique
+    folium.TileLayer('OpenStreetMap', name='🗺️ Plan Standard (OSM)', control=True).add_to(carte)
+    folium.TileLayer(
+        tiles='https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+        attr='Esri, Maxar, Earthstar Geographics',
+        name='🛰️ Vue Satellite (Esri)',
+        control=True
+    ).add_to(carte)
+    folium.TileLayer(
+        tiles='https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',
+        attr='OpenTopoMap',
+        name='🏔️ Relief Topographique',
+        control=True
+    ).add_to(carte)
+    
+    # Plugins Folium Enterprise
+    Fullscreen(position='topright', title='Plein écran', title_cancel='Quitter plein écran', force_separate_button=True).add_to(carte)
+    MiniMap(toggle_display=True, position='bottomleft', width=130, height=95, zoom_animation=True).add_to(carte)
     
     if not depots:
         folium.Marker(
@@ -806,10 +827,19 @@ def generate_map():
             popup="Aucun dépôt en attente",
             icon=folium.Icon(color='gray', icon='info', prefix='fa')
         ).add_to(carte)
+        folium.LayerControl(position='topright', collapsed=True).add_to(carte)
         return carte._repr_html_()
     
-    cluster = MarkerCluster().add_to(carte)
+    cluster = MarkerCluster(name="📍 Signalements groupés").add_to(carte)
     couleurs = {'urgent': 'red', 'moyen': 'orange', 'normal': 'green'}
+    badge_colors = {
+        'urgent': ('#fef2f2', '#dc2626'),
+        'moyen': ('#fffbeb', '#d97706'),
+        'normal': ('#f0fdf4', '#16a34a')
+    }
+    statut_labels = {'en_attente': 'En attente', 'en_cours': 'En cours', 'resolu': 'Résolu'}
+    
+    heat_points = []
     
     for depot in depots:
         lat = float(depot['latitude'])
@@ -817,63 +847,124 @@ def generate_map():
         
         priorite = depot.get('priorite', 'normal')
         statut = depot.get('statut', 'en_attente')
-        volume = depot.get('volume', 0)
+        try:
+            volume = float(depot.get('volume', 0.0))
+        except (ValueError, TypeError):
+            volume = 0.0
+            
         depot_id = depot.get('id', '?')
+        photo_path = depot.get('photo_chemin', '')
         
-        is_default_coords = (abs(lat - 12.6392) < 0.0001 and abs(lon - (-8.0029)) < 0.0001)
+        is_default_coords = (abs(lat - 12.6392) < 0.0005 and abs(lon - (-8.0029)) < 0.0005)
+        
+        if not is_default_coords:
+            heat_points.append([lat, lon, max(1.0, volume)])
+            
         if is_default_coords:
             couleur = 'purple'
-            badge_loc = "<span style='color:#7c3aed;font-size:11px;font-weight:700;'>📍 Position approximative (Bamako)</span><br>"
+            badge_bg, badge_color = '#faf5ff', '#7c3aed'
+            badge_loc = "<div style='margin-bottom:6px;'><span style='background:#faf5ff; color:#7c3aed; border:1px solid #e9d5ff; padding:2px 8px; border-radius:10px; font-size:10px; font-weight:700;'>📍 POSITION ESTIMÉE (CENTRE)</span></div>"
         else:
             couleur = couleurs.get(priorite, 'blue')
+            badge_bg, badge_color = badge_colors.get(priorite, ('#eff6ff', '#2563eb'))
             badge_loc = ""
-        
+            
         adresse = get_address(lat, lon)
         maps_link = f"https://www.google.com/maps/search/?api=1&query={lat},{lon}"
+        statut_text = statut_labels.get(statut, str(statut).capitalize())
+        
+        photo_thumb = ""
+        if photo_path and os.path.exists(photo_path):
+            try:
+                with open(photo_path, "rb") as f:
+                    b64 = base64.b64encode(f.read()).decode()
+                photo_thumb = f"<div style='margin-bottom:8px; text-align:center;'><img src='data:image/jpeg;base64,{b64}' style='width:100%; max-height:115px; object-fit:cover; border-radius:6px; border:1px solid #e2e8f0;'/></div>"
+            except Exception:
+                pass
         
         popup_text = f"""
-        <div style="font-family: Arial, sans-serif; min-width: 200px;">
-            <b style="font-size: 14px;">Dépôt #{depot_id}</b><br>
+        <div style="font-family: 'Inter', system-ui, -apple-system, sans-serif; min-width: 220px; max-width: 260px; padding: 2px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; border-bottom:1px solid #e2e8f0; padding-bottom:4px;">
+                <span style="font-size:14px; font-weight:800; color:#0f172a;">Dépôt #{depot_id}</span>
+                <span style="background:{badge_bg}; color:{badge_color}; padding:2px 8px; border-radius:12px; font-size:10px; font-weight:700; text-transform:uppercase;">{priorite}</span>
+            </div>
             {badge_loc}
-            <b>Adresse :</b> {adresse}<br>
-            <b>Volume :</b> {volume} m³<br>
-            <b>Priorité :</b> <span style="text-transform: capitalize; font-weight: bold;">{priorite}</span><br>
-            <b>Statut :</b> {statut}<br><br>
-            <a href="{maps_link}" target="_blank" style="color:#007bff;font-weight:600;text-decoration:none;">
-                Voir sur Google Maps &rarr;
+            {photo_thumb}
+            <div style="font-size:12px; color:#475569; margin-bottom:4px;">
+                <strong style="color:#1e293b;">Volume :</strong> <span style="font-weight:700; color:#0f172a;">{volume:.2f} m³</span>
+            </div>
+            <div style="font-size:12px; color:#475569; margin-bottom:6px;">
+                <strong style="color:#1e293b;">Statut :</strong> <span style="font-weight:600; color:#2563eb;">{statut_text}</span>
+            </div>
+            <div style="font-size:11px; color:#64748b; margin-bottom:8px; line-height:1.3;">
+                <i class="fas fa-map-marker-alt" style="color:#94a3b8; margin-right:4px;"></i>{adresse}
+            </div>
+            <a href="{maps_link}" target="_blank" style="display:block; text-align:center; background:#0284c7; color:#ffffff; padding:6px 10px; border-radius:6px; font-size:11px; font-weight:600; text-decoration:none;">
+                Ouvrir dans Google Maps ↗
             </a>
         </div>
         """
         
         folium.Marker(
             location=[lat, lon],
-            popup=folium.Popup(popup_text, max_width=320),
-            tooltip=f"Dépôt #{depot_id} ({priorite} - {volume} m³)",
+            popup=folium.Popup(popup_text, max_width=280),
+            tooltip=f"Dépôt #{depot_id} • {volume:.2f} m³ ({priorite})",
             icon=folium.Icon(color=couleur, icon='trash', prefix='fa')
         ).add_to(cluster)
+        
+        folium.Circle(
+            location=[lat, lon],
+            radius=max(30, min(140, int(volume * 14))),
+            color=couleur,
+            fill=True,
+            fill_opacity=0.10,
+            weight=1
+        ).add_to(carte)
     
+    if heat_points:
+        heat_layer = folium.FeatureGroup(name="🔥 Carte thermique (Densité)", show=False)
+        HeatMap(heat_points, radius=25, blur=15, min_opacity=0.3).add_to(heat_layer)
+        heat_layer.add_to(carte)
+        
+    folium.LayerControl(position='topright', collapsed=True).add_to(carte)
     return carte._repr_html_()
 
 # ==================== SIDEBAR ====================
 sidebar = html.Div([
     html.Div([
         html.Div([
-            html.I(className="fas fa-trash-alt", style={'fontSize': '22px', 'color': '#00d4ff', 'marginRight': '14px'}),
-            html.Span("SANUYA", style={'fontSize': '20px', 'fontWeight': '800', 'color': '#ffffff', 'letterSpacing': '-0.5px'})
-        ], className="d-flex align-items-center px-3 py-4")
-    ], style={'borderBottom': '1px solid rgba(255,255,255,0.06)'}),
+            html.Div([
+                html.I(className="fas fa-leaf", style={'fontSize': '18px', 'color': '#10b981'})
+            ], style={'width': '38px', 'height': '38px', 'borderRadius': '10px', 'backgroundColor': 'rgba(16, 185, 129, 0.15)', 'display': 'flex', 'alignItems': 'center', 'justifyContent': 'center', 'marginRight': '12px'}),
+            html.Div([
+                html.Span("SANUYA", style={'fontSize': '18px', 'fontWeight': '800', 'color': '#ffffff', 'letterSpacing': '0.5px'}),
+                html.Span("PROPRETÉ URBAINE", style={'fontSize': '9px', 'fontWeight': '700', 'color': '#64748b', 'letterSpacing': '1.5px', 'display': 'block'})
+            ])
+        ], className="d-flex align-items-center px-3 py-3")
+    ], style={'borderBottom': '1px solid rgba(255,255,255,0.08)'}),
+    
     html.Div([
-        html.P("MENU", className="text-uppercase text-white-50 px-3 mt-3 mb-2", style={'fontSize': '10px', 'fontWeight': '600', 'letterSpacing': '2px'}),
+        html.P("NAVIGATION", className="text-white-50 px-3 mt-4 mb-2", style={'fontSize': '10px', 'fontWeight': '700', 'letterSpacing': '1.5px'}),
         dbc.Nav([
-            dbc.NavLink([html.I(className="fas fa-chart-pie me-3"), html.Span("Tableau de bord")], href="/", active="exact", className="sidebar-link py-2 px-3 rounded-3"),
-            dbc.NavLink([html.I(className="fas fa-list me-3"), html.Span("Liste des dépôts")], href="/liste", active="exact", className="sidebar-link py-2 px-3 rounded-3"),
-            dbc.NavLink([html.I(className="fas fa-chart-line me-3"), html.Span("Statistiques")], href="/stats", active="exact", className="sidebar-link py-2 px-3 rounded-3"),
-            dbc.NavLink([html.I(className="fas fa-camera me-3"), html.Span("Tester")], href="/tester", active="exact", className="sidebar-link py-2 px-3 rounded-3"),
+            dbc.NavLink([html.I(className="fas fa-chart-pie me-3"), html.Span("Tableau de bord")], href="/", active="exact", className="sidebar-link py-2 px-3 rounded-2 mb-1"),
+            dbc.NavLink([html.I(className="fas fa-list-ul me-3"), html.Span("Liste des dépôts")], href="/liste", active="exact", className="sidebar-link py-2 px-3 rounded-2 mb-1"),
+            dbc.NavLink([html.I(className="fas fa-chart-bar me-3"), html.Span("Statistiques & IA")], href="/stats", active="exact", className="sidebar-link py-2 px-3 rounded-2 mb-1"),
+            dbc.NavLink([html.I(className="fas fa-camera-retro me-3"), html.Span("Tester l'IA")], href="/tester", active="exact", className="sidebar-link py-2 px-3 rounded-2 mb-1"),
         ], vertical=True, pills=False, className="px-2")
-    ], className="mt-2"),
+    ], className="flex-grow-1"),
+    
+    html.Div([
+        html.Div([
+            html.Div([
+                html.Span(className="pulse-dot me-2"),
+                html.Span("Système Actif (SQLite)", style={'fontSize': '11px', 'fontWeight': '600', 'color': '#cbd5e1'})
+            ], className="d-flex align-items-center mb-1"),
+            html.Div("Bamako, Mali • v2.1 Pro", style={'fontSize': '10px', 'color': '#64748b'})
+        ], style={'padding': '12px 14px', 'background': 'rgba(255,255,255,0.03)', 'borderRadius': '8px', 'border': '1px solid rgba(255,255,255,0.06)'})
+    ], className="p-3 mt-auto")
 ], style={
     'position': 'fixed', 'top': 0, 'left': 0, 'bottom': 0,
-    'width': '230px', 'background': '#0f172a', 'padding': '0',
+    'width': '235px', 'background': '#0f172a', 'padding': '0',
     'zIndex': '1000', 'display': 'flex', 'flexDirection': 'column'
 })
 
@@ -881,44 +972,88 @@ sidebar = html.Div([
 content = html.Div([
     dcc.Location(id="url", refresh=False),
     html.Div(id="page-content"),
-    dcc.Interval(id="interval-stats", interval=5000)
-], style={'marginLeft': '230px', 'padding': '30px', 'backgroundColor': '#f0f4f8', 'minHeight': '100vh'})
+    dcc.Interval(id="interval-stats", interval=30000)
+], style={'marginLeft': '235px', 'padding': '28px 36px', 'backgroundColor': '#f8fafc', 'minHeight': '100vh'})
 
 app.layout = html.Div([sidebar, content])
 
-# ==================== STAT CARD ====================
-def create_stat_card(title, value, color):
-    glow_class = {'blue': 'glow-blue', 'red': 'glow-red', 'orange': 'glow-orange', 'green': 'glow-green'}.get(color, 'glow-blue')
-    color_map = {'blue': '#3b82f6', 'red': '#ef4444', 'orange': '#f59e0b', 'green': '#22c55e'}
+# ==================== STAT CARD PRO ====================
+def create_stat_card(title, value, unit="", icon="fas fa-trash", color="blue", subtitle=""):
+    color_map = {
+        'blue': {'bg': '#eff6ff', 'border': '#dbeafe', 'icon': '#2563eb'},
+        'red': {'bg': '#fef2f2', 'border': '#fee2e2', 'icon': '#dc2626'},
+        'orange': {'bg': '#fff7ed', 'border': '#ffedd5', 'icon': '#ea580c'},
+        'green': {'bg': '#f0fdf4', 'border': '#dcfce7', 'icon': '#16a34a'},
+    }
+    c = color_map.get(color, color_map['blue'])
     return html.Div([
-        html.Div(className=f"glow {glow_class}"),
         html.Div([
-            html.Div(str(value), className="number", style={'color': color_map[color]}),
-            html.Div(title, className="label")
-        ])
-    ], className="stat-card")
+            html.Div([
+                html.Span(title, style={'fontSize': '12px', 'fontWeight': '700', 'color': '#64748b', 'textTransform': 'uppercase', 'letterSpacing': '0.5px'}),
+                html.Div([
+                    html.Span(str(value), style={'fontSize': '28px', 'fontWeight': '800', 'color': '#0f172a', 'lineHeight': '1.2'}),
+                    html.Span(f" {unit}" if unit else "", style={'fontSize': '14px', 'fontWeight': '600', 'color': '#64748b', 'marginLeft': '4px'})
+                ], className="d-flex align-items-baseline mt-1"),
+                html.Div(subtitle, style={'fontSize': '11.5px', 'color': '#94a3b8', 'marginTop': '4px'}) if subtitle else html.Div()
+            ]),
+            html.Div([
+                html.I(className=icon, style={'fontSize': '18px', 'color': c['icon']})
+            ], style={'width': '42px', 'height': '42px', 'borderRadius': '10px', 'backgroundColor': c['bg'], 'border': f"1px solid {c['border']}", 'display': 'flex', 'alignItems': 'center', 'justifyContent': 'center'})
+        ], className="d-flex justify-content-between align-items-start")
+    ], className="stat-card col-md-3 col-sm-6")
 
 # ==================== PAGE TABLEAU DE BORD ====================
 def page_dashboard():
     return html.Div([
-        html.H1("Tableau de bord", className="page-title"),
-        html.P("Supervision et cartographie des dépôts sauvages en temps réel", className="page-subtitle mb-4"),
+        html.Div([
+            html.Div([
+                html.H1("Tableau de bord stratégique", className="page-title"),
+                html.P("Supervision et cartographie opérationnelle des dépôts sauvages en temps réel", className="page-subtitle"),
+            ]),
+            html.Div([
+                dbc.Button([
+                    html.I(className="fas fa-sync-alt me-2"),
+                    "Actualiser la carte"
+                ], id="btn-refresh-map", color="light", size="sm", className="border shadow-sm px-3 py-2 fw-semibold me-2", style={'fontSize': '12.5px'}),
+                html.Span([
+                    html.Span(className="pulse-dot me-2"),
+                    "Données en direct"
+                ], className="badge bg-success-subtle text-success border border-success-subtle px-3 py-2 d-inline-flex align-items-center", style={'fontSize': '12px', 'fontWeight': '600'})
+            ], className="d-flex align-items-center mt-2 mt-md-0")
+        ], className="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center mb-4"),
+        
         html.Div(id="stats-container"),
+        
         html.Div([
             html.Div([
                 html.Div([
-                    html.I(className="fas fa-map-marked-alt text-primary me-2", style={'fontSize': '20px'}),
-                    html.H5("Carte des signalements et zones d'intervention", className="mb-0", style={'fontWeight': '700', 'color': '#0f172a'}),
-                    html.Span("Temps réel", className="badge bg-primary-subtle text-primary ms-auto", style={'fontSize': '12px', 'fontWeight': '600'})
-                ], className="d-flex align-items-center mb-3"),
-                html.Div(id="dashboard-map-container", className="map-container"),
+                    html.Div([
+                        html.I(className="fas fa-map-marked-alt text-primary me-2", style={'fontSize': '18px'}),
+                        html.H5("Système d'Information Géographique (SIG)", className="mb-0", style={'fontWeight': '700', 'color': '#0f172a'}),
+                    ], className="d-flex align-items-center"),
+                    html.Div([
+                        html.Span("Multi-couches (OSM, Satellite, Relief)", className="badge bg-light text-muted border me-2", style={'fontSize': '11px'}),
+                        html.Span("Haversine 50m actif", className="badge bg-primary-subtle text-primary border border-primary-subtle", style={'fontSize': '11px'})
+                    ], className="d-flex align-items-center")
+                ], className="d-flex justify-content-between align-items-center mb-3 pb-2 border-bottom"),
+                
+                dcc.Loading(
+                    id="loading-map",
+                    type="dot",
+                    color="#0284c7",
+                    children=html.Div(id="dashboard-map-container", className="map-container")
+                ),
+                
                 html.Div([
-                    html.Div([html.Span(className="legend-dot", style={'backgroundColor': '#ef4444'}), html.Span("Urgent (> 5 m³)")], className="legend-item"),
-                    html.Div([html.Span(className="legend-dot", style={'backgroundColor': '#f59e0b'}), html.Span("Moyen (2 - 5 m³)")], className="legend-item"),
-                    html.Div([html.Span(className="legend-dot", style={'backgroundColor': '#22c55e'}), html.Span("Normal (< 2 m³)")], className="legend-item"),
-                    html.Div([html.Span(className="legend-dot", style={'backgroundColor': '#7c3aed'}), html.Span("Position approximative (Bamako)")], className="legend-item"),
-                ], className="legend")
-            ], className="content-card mt-4")
+                    html.Div([
+                        html.Div([html.Span(className="legend-dot", style={'backgroundColor': '#dc2626'}), html.Span("Urgent (> 5 m³)", className="fw-semibold text-secondary")], className="legend-item"),
+                        html.Div([html.Span(className="legend-dot", style={'backgroundColor': '#d97706'}), html.Span("Moyen (2 - 5 m³)", className="fw-semibold text-secondary")], className="legend-item"),
+                        html.Div([html.Span(className="legend-dot", style={'backgroundColor': '#16a34a'}), html.Span("Normal (< 2 m³)", className="fw-semibold text-secondary")], className="legend-item"),
+                        html.Div([html.Span(className="legend-dot", style={'backgroundColor': '#7c3aed'}), html.Span("Position estimée (Bamako centre)", className="fw-semibold text-secondary")], className="legend-item"),
+                    ], className="d-flex flex-wrap gap-3 align-items-center"),
+                    html.Small("💡 Astuce : Utilisez le sélecteur de couches en haut à droite pour basculer en vue Satellite ou Thermique.", className="text-muted")
+                ], className="legend d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center mt-3")
+            ], className="content-card mt-3")
         ])
     ])
 
@@ -1168,43 +1303,67 @@ def page_tester():
         ])
     ])
 
-# ==================== CALLBACKS ====================
+# ==================== CALLBACKS DASHBOARD ====================
 @app.callback(
-    [Output("stats-container", "children"),
-     Output("dashboard-map-container", "children")],
-    Input("interval-stats", "n_intervals")
+    Output("stats-container", "children"),
+    [Input("interval-stats", "n_intervals"),
+     Input("url", "pathname")]
 )
-def update_stats_dashboard(n):
+def update_stats_dashboard(n, pathname):
+    if pathname not in ["/", ""]:
+        return dash.no_update
     stats = get_stats_dashboard()
-    map_html = generate_map()
-    map_iframe = html.Iframe(
-        srcDoc=map_html,
-        style={'width': '100%', 'height': '100%', 'border': 'none', 'borderRadius': '12px'}
-    )
     if not stats:
-        return html.Div("Impossible de charger les données", className="text-danger"), map_iframe
+        return html.Div("Impossible de charger les données", className="text-danger")
+    
+    total = stats.get('total', 0)
+    resolu = stats.get('resolu', 0)
+    total_historique = total + resolu
+    taux_res = stats.get('taux_resolution', 0)
     
     stats_cards = html.Div([
         html.Div([
-            create_stat_card("Total", stats.get('total', 0), "blue"),
-            create_stat_card("Urgents", stats.get('urgent', 0), "red"),
-            create_stat_card("Moyens", stats.get('moyen', 0), "orange"),
-            create_stat_card("Normaux", stats.get('normal', 0), "green")
-        ], className="stats-grid"),
-        html.Div([
-            create_stat_card("En attente", stats.get('attente', 0), "orange"),
-            create_stat_card("En cours", stats.get('cours', 0), "blue"),
-            create_stat_card("Résolus", stats.get('resolu', 0), "green")
-        ], className="stats-grid-3"),
+            create_stat_card("Total Dépôts", total, unit="actifs", icon="fas fa-layer-group", color="blue", subtitle=f"Sur {total_historique} signalements répertoriés"),
+            create_stat_card("Priorité Urgente", stats.get('urgent', 0), unit="critiques", icon="fas fa-exclamation-triangle", color="red", subtitle="Nécessite évacuation immédiate"),
+            create_stat_card("Volume Estimé", stats.get('volume_total', 0), unit="m³", icon="fas fa-cubes", color="orange", subtitle="Masse totale de déchets actifs"),
+            create_stat_card("Taux Résolution", f"{taux_res}%", unit="", icon="fas fa-check-circle", color="green", subtitle=f"{resolu} résolus • {stats.get('cours', 0)} en cours"),
+        ], className="row g-3 mb-3"),
         html.Div([
             html.Div([
-                html.I(className="fas fa-calendar-day me-2", style={'color': '#64748b'}),
-                html.Span(f"Aujourd'hui : {date.today().strftime('%d %B %Y')}", style={'color': '#64748b', 'fontSize': '14px'})
-            ], className="text-center py-2")
-        ], className="content-card", style={'marginTop': '16px'})
+                html.Div([
+                    html.I(className="fas fa-clock text-warning me-2"),
+                    html.Span("En attente : ", className="text-muted small"),
+                    html.Strong(f"{stats.get('attente', 0)}", className="me-4 text-slate-800"),
+                    html.I(className="fas fa-spinner text-primary me-2"),
+                    html.Span("En cours : ", className="text-muted small"),
+                    html.Strong(f"{stats.get('cours', 0)}", className="me-4 text-slate-800"),
+                    html.I(className="fas fa-check-double text-success me-2"),
+                    html.Span("Résolus : ", className="text-muted small"),
+                    html.Strong(f"{resolu}", className="me-4 text-slate-800"),
+                ], className="d-flex align-items-center flex-wrap"),
+                html.Div([
+                    html.I(className="fas fa-calendar-day me-2 text-muted"),
+                    html.Span(f"Dernière synchronisation : {datetime.now().strftime('%d/%m/%Y • %H:%M')}", className="text-muted small")
+                ], className="d-flex align-items-center mt-2 mt-md-0")
+            ], className="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center py-2 px-3 bg-white rounded-3 border")
+        ], className="mb-2")
     ])
     
-    return stats_cards, map_iframe
+    return stats_cards
+
+@app.callback(
+    Output("dashboard-map-container", "children"),
+    [Input("url", "pathname"),
+     Input("btn-refresh-map", "n_clicks")]
+)
+def update_dashboard_map(pathname, n_refresh):
+    if pathname not in ["/", ""]:
+        return dash.no_update
+    map_html = generate_map()
+    return html.Iframe(
+        srcDoc=map_html,
+        style={'width': '100%', 'height': '100%', 'border': 'none', 'borderRadius': '10px'}
+    )
 
 # ==================== CALLBACK LISTE ====================
 @app.callback(
@@ -1906,21 +2065,21 @@ def update_stats_graphs(n):
                 fig_priorite.add_trace(go.Pie(
                     labels=priorite_counts['label'],
                     values=priorite_counts['count'],
-                    marker=dict(colors=couleurs),
+                    marker=dict(colors=couleurs, line=dict(color='#ffffff', width=2)),
+                    hole=0.55,
                     textposition='inside',
                     textinfo='percent+label',
-                    hoverinfo='label+value+percent',
-                    pull=[0.05 if i == 0 else 0 for i in range(len(priorite_counts))]
+                    hoverinfo='label+value+percent'
                 ))
             else:
                 fig_priorite.add_annotation(text="Aucune donnée", x=0.5, y=0.5, showarrow=False, font=dict(size=14, color="#94a3b8"))
             
             fig_priorite.update_layout(
-                title=dict(text="Répartition par priorité", font=dict(size=16, color="#0f172a")),
+                title=dict(text="Répartition par niveau d'urgence", font=dict(size=15, color="#0f172a", family="Inter")),
                 plot_bgcolor='rgba(0,0,0,0)',
                 paper_bgcolor='rgba(0,0,0,0)',
                 font_color='#0f172a',
-                height=350,
+                height=340,
                 margin=dict(l=20, r=20, t=50, b=20)
             )
         except Exception as e:
@@ -1935,7 +2094,7 @@ def update_stats_graphs(n):
             statut_labels = {'en_attente': 'En attente', 'en_cours': 'En cours', 'resolu': 'Résolu'}
             statut_counts['label'] = statut_counts['statut'].map(statut_labels).fillna(statut_counts['statut'])
             
-            couleurs_statut = {'en_attente': '#f59e0b', 'en_cours': '#3b82f6', 'resolu': '#22c55e'}
+            couleurs_statut = {'en_attente': '#f59e0b', 'en_cours': '#3b82f6', 'resolu': '#10b981'}
             statut_couleurs = [couleurs_statut.get(s, '#94a3b8') for s in statut_counts['statut']]
             
             fig_statut = go.Figure()
@@ -1943,21 +2102,21 @@ def update_stats_graphs(n):
                 fig_statut.add_trace(go.Pie(
                     labels=statut_counts['label'],
                     values=statut_counts['count'],
-                    marker=dict(colors=statut_couleurs),
+                    marker=dict(colors=statut_couleurs, line=dict(color='#ffffff', width=2)),
+                    hole=0.55,
                     textposition='inside',
                     textinfo='percent+label',
-                    hoverinfo='label+value+percent',
-                    pull=[0.05 if i == 0 else 0 for i in range(len(statut_counts))]
+                    hoverinfo='label+value+percent'
                 ))
             else:
                 fig_statut.add_annotation(text="Aucune donnée", x=0.5, y=0.5, showarrow=False, font=dict(size=14, color="#94a3b8"))
             
             fig_statut.update_layout(
-                title=dict(text="Répartition par statut", font=dict(size=16, color="#0f172a")),
+                title=dict(text="Avancement de l'éradication", font=dict(size=15, color="#0f172a", family="Inter")),
                 plot_bgcolor='rgba(0,0,0,0)',
                 paper_bgcolor='rgba(0,0,0,0)',
                 font_color='#0f172a',
-                height=350,
+                height=340,
                 margin=dict(l=20, r=20, t=50, b=20)
             )
         except Exception as e:
@@ -1976,27 +2135,26 @@ def update_stats_graphs(n):
                     marker=dict(
                         color=top_volumes['volume'],
                         colorscale='Blues',
-                        showscale=True,
-                        colorbar=dict(title="Volume (m³)", tickformat='.2f')
+                        showscale=False
                     ),
                     text=top_volumes['volume'].round(2),
                     textposition='outside',
-                    texttemplate='%{text:.2f} m²'
+                    texttemplate='%{text:.2f} m³'
                 ))
             else:
                 fig_volume.add_annotation(text="Aucune donnée", x=0.5, y=0.5, showarrow=False, font=dict(size=14, color="#94a3b8"))
             
             fig_volume.update_layout(
-                title=dict(text="Top 10 des dépôts par volume", font=dict(size=16, color="#0f172a")),
+                title=dict(text="Top 10 des dépôts les plus volumineux (m³)", font=dict(size=15, color="#0f172a", family="Inter")),
                 plot_bgcolor='rgba(0,0,0,0)',
                 paper_bgcolor='rgba(0,0,0,0)',
                 font_color='#0f172a',
-                xaxis_title="ID du dépôt",
-                yaxis_title="Volume (m³)",
-                height=350,
+                xaxis_title="Identifiant du dépôt (#ID)",
+                yaxis_title="Volume estimé (m³)",
+                height=340,
                 margin=dict(l=20, r=20, t=50, b=30),
-                xaxis=dict(showgrid=True, gridcolor='#e9edf2', showline=True, linecolor='#e9edf2'),
-                yaxis=dict(showgrid=True, gridcolor='#e9edf2', showline=True, linecolor='#e9edf2', tickformat='.2f')
+                xaxis=dict(showgrid=True, gridcolor='#f1f5f9', showline=True, linecolor='#e2e8f0'),
+                yaxis=dict(showgrid=True, gridcolor='#f1f5f9', showline=True, linecolor='#e2e8f0', tickformat='.2f')
             )
         except Exception as e:
             print(f"❌ Erreur graphique volume: {e}")
@@ -2028,4 +2186,4 @@ def display_page(pathname):
 if __name__ == "__main__":
     print("SANUYA Dashboard")
     print("http://localhost:8050")
-    app.run(debug=True, host='0.0.0.0', port=8050)
+    app.run(debug=True, dev_tools_ui=False, host='0.0.0.0', port=8050)
